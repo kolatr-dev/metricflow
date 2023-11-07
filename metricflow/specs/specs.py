@@ -81,7 +81,7 @@ class InstanceSpecVisitor(Generic[VisitorOutputT], ABC):
         raise NotImplementedError
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class InstanceSpec(SerializableDataclass):
     """A specification for an instance of a metric definition object.
 
@@ -121,7 +121,7 @@ class InstanceSpec(SerializableDataclass):
 SelfTypeT = TypeVar("SelfTypeT", bound="LinkableInstanceSpec")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class MetadataSpec(InstanceSpec):
     """A specification for a specification that is built during the dataflow plan and not defined in config."""
 
@@ -144,7 +144,7 @@ class MetadataSpec(InstanceSpec):
         return InstanceSpecSet(metadata_specs=(self,))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class LinkableInstanceSpec(InstanceSpec, ABC):
     """Generally a dimension or entity that may be specified using entity links.
 
@@ -182,7 +182,7 @@ class LinkableInstanceSpec(InstanceSpec, ABC):
         ).qualified_name
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class EntitySpec(LinkableInstanceSpec, SerializableDataclass):  # noqa: D
     @property
     def without_first_entity_link(self) -> EntitySpec:  # noqa: D
@@ -230,7 +230,7 @@ class EntitySpec(LinkableInstanceSpec, SerializableDataclass):  # noqa: D
         return visitor.visit_entity_spec(self)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class LinklessEntitySpec(EntitySpec, SerializableDataclass):
     """Similar to EntitySpec, but requires that it doesn't have entity links."""
 
@@ -255,7 +255,7 @@ class LinklessEntitySpec(EntitySpec, SerializableDataclass):
         return LinklessEntitySpec(element_name=entity_reference.element_name, entity_links=())
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class DimensionSpec(LinkableInstanceSpec, SerializableDataclass):  # noqa: D
     element_name: str
     entity_links: Tuple[EntityReference, ...]
@@ -359,7 +359,7 @@ class TimeDimensionSpecComparisonKey:
 DEFAULT_TIME_GRANULARITY = TimeGranularity.DAY
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class TimeDimensionSpec(DimensionSpec):  # noqa: D
     time_granularity: TimeGranularity = DEFAULT_TIME_GRANULARITY
     date_part: Optional[DatePart] = None
@@ -441,7 +441,7 @@ class TimeDimensionSpec(DimensionSpec):  # noqa: D
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class NonAdditiveDimensionSpec(SerializableDataclass):
     """Spec representing non-additive dimension parameters for use within a MeasureSpec.
 
@@ -476,7 +476,7 @@ class NonAdditiveDimensionSpec(SerializableDataclass):
         return self.bucket_hash == other.bucket_hash
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class MeasureSpec(InstanceSpec):  # noqa: D
     element_name: str
     non_additive_dimension_spec: Optional[NonAdditiveDimensionSpec] = None
@@ -509,7 +509,7 @@ class MeasureSpec(InstanceSpec):  # noqa: D
         return InstanceSpecSet(measure_specs=(self,))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class MetricSpec(InstanceSpec):  # noqa: D
     # Time-over-time could go here
     element_name: str
@@ -561,7 +561,7 @@ class CumulativeMeasureDescription:
     cumulative_grain_to_date: Optional[TimeGranularity]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class MetricInputMeasureSpec(SerializableDataclass):
     """The spec for a measure defined as a base metric input.
 
@@ -595,13 +595,13 @@ class MetricInputMeasureSpec(SerializableDataclass):
             return self.measure_spec
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class OrderBySpec(SerializableDataclass):  # noqa: D
     instance_spec: InstanceSpec
     descending: bool
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class FilterSpec(SerializableDataclass):  # noqa: D
     expr: str
     elements: Tuple[InstanceSpec, ...]
@@ -610,7 +610,7 @@ class FilterSpec(SerializableDataclass):  # noqa: D
 LinkableSpecSetTransformOutputT = TypeVar("LinkableSpecSetTransformOutputT")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class LinkableSpecSet(Mergeable, SerializableDataclass):
     """Groups linkable specs."""
 
@@ -719,7 +719,7 @@ class LinkableSpecSetTransform(Generic[LinkableSpecSetTransformOutputT], ABC):
         pass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class MetricFlowQuerySpec(SerializableDataclass):
     """Specs needed for running a query."""
 
@@ -752,7 +752,7 @@ class InstanceSpecSetTransform(Generic[TransformOutputT], ABC):
         pass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class InstanceSpecSet(Mergeable, SerializableDataclass):
     """Consolidates all specs used in an instance set."""
 
@@ -843,7 +843,7 @@ class InstanceSpecSet(Mergeable, SerializableDataclass):
         return InstanceSpecSet.merge_iterable(spec.as_spec_set for spec in specs)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class PartitionSpecSet(SerializableDataclass):
     """Grouping of the linkable specs."""
 
@@ -858,7 +858,7 @@ class WhereFilterResolutionException(Exception):  # noqa: D
     pass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class WhereFilterSpec(SerializableDataclass):
     """Similar to the WhereFilter, but with the where_sql_template rendered and used elements extracted.
 
