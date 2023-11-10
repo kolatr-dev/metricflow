@@ -607,6 +607,9 @@ class FilterSpec(SerializableDataclass):  # noqa: D
     elements: Tuple[InstanceSpec, ...]
 
 
+LinkableSpecSetTransformOutputT = TypeVar("LinkableSpecSetTransformOutputT")
+
+
 @dataclass(frozen=True)
 class LinkableSpecSet(Mergeable, SerializableDataclass):
     """Groups linkable specs."""
@@ -696,6 +699,24 @@ class LinkableSpecSet(Mergeable, SerializableDataclass):
             time_dimension_specs=instance_spec_set.time_dimension_specs,
             entity_specs=instance_spec_set.entity_specs,
         )
+
+    def transform(  # noqa: D
+        self, transform_function: LinkableSpecSetTransform[LinkableSpecSetTransformOutputT]
+    ) -> LinkableSpecSetTransformOutputT:
+        return transform_function.transform(self)
+
+
+class LinkableSpecSetTransform(Generic[LinkableSpecSetTransformOutputT], ABC):
+    """Function to use for transforming LinkableSpecSets.
+
+    Similar to InstanceSpecSetTransform, but for LinkableSpecSets. TBD: There's a lot of similarity between
+    InstanceSpecSet and LinkableSpecSet, so there's probably a better class structure so that we don't need to duplicate
+    this.
+    """
+
+    @abstractmethod
+    def transform(self, spec_set: LinkableSpecSet) -> LinkableSpecSetTransformOutputT:  # noqa: D
+        pass
 
 
 @dataclass(frozen=True)
