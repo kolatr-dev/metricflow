@@ -39,6 +39,7 @@ from metricflow.aggregation_properties import AggregationState
 from metricflow.collection_helpers.merger import Mergeable
 from metricflow.filters.time_constraint import TimeRangeConstraint
 from metricflow.naming.linkable_spec_name import StructuredLinkableSpecName
+from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import WhereFilterLinkableSpecLookup
 from metricflow.sql.sql_bind_parameters import SqlBindParameters
 from metricflow.sql.sql_column_type import SqlColumnType
 from metricflow.sql.sql_plan import SqlJoinType
@@ -731,6 +732,8 @@ class MetricFlowQuerySpec(SerializableDataclass):
     time_range_constraint: Optional[TimeRangeConstraint] = None
     where_constraint: Optional[WhereFilterSpec] = None
     limit: Optional[int] = None
+
+    where_filter_linkable_spec_lookup: WhereFilterLinkableSpecLookup = WhereFilterLinkableSpecLookup.empty_instance()
 
     @property
     def linkable_specs(self) -> LinkableSpecSet:  # noqa: D
