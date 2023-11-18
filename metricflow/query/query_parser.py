@@ -15,6 +15,8 @@ from metricflow.dataflow.builder.node_data_set import DataflowPlanNodeOutputData
 from metricflow.dataflow.dataflow_plan import ReadSqlSourceNode
 from metricflow.filters.merge_where import merge_to_single_where_filter
 from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
+from metricflow.naming.dunder_scheme import DunderNamingScheme
+from metricflow.naming.object_builder_scheme import ObjectBuilderNamingScheme
 from metricflow.protocols.query_parameter import (
     GroupByParameter,
     MetricQueryParameter,
@@ -22,6 +24,8 @@ from metricflow.protocols.query_parameter import (
     SavedQueryParameter,
 )
 from metricflow.query.query_exceptions import InvalidQueryException
+from metricflow.query.resolver_inputs.query_resolver_inputs import ResolverInputForMetric
+from metricflow.query.resolver_inputs.string_inputs import StringResolverInputForMetric
 from metricflow.specs.column_assoc import ColumnAssociationResolver
 from metricflow.specs.python_object import parse_object_builder_naming_scheme
 from metricflow.specs.query_param_implementations import MetricParameter
@@ -57,6 +61,11 @@ class MetricFlowQueryParser:
         self._semantic_model_lookup = model.semantic_model_lookup
         self._node_output_resolver = node_output_resolver
         self._read_nodes = read_nodes
+
+        self._naming_schemes = (
+            ObjectBuilderNamingScheme(),
+            DunderNamingScheme(),
+        )
 
     def parse_and_validate_saved_query(
         self,
@@ -127,7 +136,25 @@ class MetricFlowQueryParser:
 
         e.g. make sure that the given metric is a valid metric name.
         """
-        raise NotImplementedError
+        if time_constraint_start is not None:
+            raise NotImplementedError
+        if time_constraint_end is not None:
+            raise NotImplementedError
+
+        resolver_inputs_for_metrics: List[ResolverInputForMetric] = []
+
+        for metric_name in metric_names:
+            resolver_inputs_for_metrics.append(StringResolverInputForMetric(metric_name))
+        for metric_query_parameter in metrics:
+            resolver_inputs_for_metrics.append(metric_query_parameter.query_resolver_input)
+
+        for group_by_name in group_by_names:
+            for naming_scheme in self._naming_schemes:
+                # if naming_scheme.input_str_follows_scheme():
+                #     resolver_inputs_for_group_by.append(
+                #         StringResolverInputForGroupBy()
+                #     )
+                raise NotImplementedError
 
     # def _validate_no_metric_time_dimension_query(
     #     self, metric_references: Sequence[MetricReference], time_dimension_specs: Sequence[TimeDimensionSpec]
