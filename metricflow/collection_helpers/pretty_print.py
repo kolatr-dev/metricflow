@@ -5,7 +5,7 @@ import pprint
 from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from enum import Enum
-from typing import Any, List, Optional, Sized, Union
+from typing import Any, Dict, List, Optional, Sized, Union
 
 from pydantic import BaseModel
 
@@ -28,7 +28,7 @@ class MetricFlowPrettyFormatter:
         """See mf_pformat() for argument descriptions."""
         self._indent_prefix = indent_prefix
         if max_line_length <= 0:
-            raise ValueError(f"max_line_length must be <= 0 as required by pprint.pformat(). Got {max_line_length}")
+            raise ValueError(f"max_line_length must be > 0 as required by pprint.pformat(). Got {max_line_length}")
         self._max_line_width = max_line_length
         self._include_object_field_names = include_object_field_names
         self._include_none_object_fields = include_none_object_fields
@@ -141,7 +141,7 @@ class MetricFlowPrettyFormatter:
             if is_dataclass_like_object and self._include_object_field_names:
                 result_items_without_limit.append(str(key))
             else:
-                self._handle_any_obj(key, remaining_line_width=None)
+                result_items_without_limit.append(self._handle_any_obj(key, remaining_line_width=None))
             result_items_without_limit.append(key_value_seperator)
             result_items_without_limit.append(self._handle_any_obj(value, remaining_line_width=None))
 
@@ -159,53 +159,69 @@ class MetricFlowPrettyFormatter:
 
         # Create the string for the key.
         result_lines: List[str] = []
-        if is_dataclass_like_object:
-            if self._include_object_field_names:
-                result_lines.append(str(key) + key_value_seperator)
+        if is_dataclass_like_object and self._include_object_field_names:
+            result_lines.append(str(key) + key_value_seperator)
         else:
-            key_lines = self._handle_any_obj(key, remaining_line_width=remaining_line_width).splitlines()
-            # Different ways of printing the key / value depending on whether the key fits on one line or requires
-            # multiple.
+            # See if the key can be printed on one line. This depends on the length of the value as the key and the
+            # the value as at least the first bit of the value is printed on the same line as the key.
+            # e.g.
+            # "foo"=[
+            #   ...
+            # ]
+            min_length_of_first_value_line = len(self._handle_any_obj(value, remaining_line_width=0).splitlines()[0])
+
+            key_lines = self._handle_any_obj(
+                key,
+                remaining_line_width=remaining_line_width - len(key_value_seperator) - min_length_of_first_value_line,
+            ).splitlines()
+            # key_lines would be something like:
+            # [
+            #     "KeyObject(",
+            #     "    a='foo',",
+            #     "    b='bar',",
+            #     ")",
+            # ]
+
             if len(key_lines) == 1:
-                result_lines.extend(key_lines)
+                result_lines.append(key_lines[0] + key_value_seperator)
             else:
                 # The key needs to be printed in multiple lines. In that case, we want a result where the key value
                 # separator is on the last line with the key. e.g.
-                """
-                KeyObject(
-                    a='foo',
-                    b='bar',
-                ): ... <value>
-                """
+                #
+                # KeyObject(
+                #     a='foo',
+                #     b='bar',
+                # ): ... <value>
+                #
                 result_lines.extend(key_lines[:-1])
                 result_lines.append(key_lines[-1] + key_value_seperator)
-
-        # Create the string for the values.
-        value_lines = self._handle_any_obj(
-            value, remaining_line_width=max(0, remaining_line_width - len(self._indent_prefix))
-        ).splitlines()
 
         # Combine key and value.
 
         # Similar to the key, how we print the value depends on whether the value fits on one line or not. e.g.
-        """
-        foo=[1, 2, 3]
+        # foo=[1, 2, 3]
+        #
+        # or
+        #
+        # foo=[
+        #   1,
+        #   2,
+        #   3,
+        # ]
 
-        or
+        # See if the value fits in the previous line.
+        remaining_width_for_value = max(0, remaining_line_width - len(result_lines[-1]))
+        value_str = self._handle_any_obj(value, remaining_line_width=remaining_width_for_value)
+        value_lines = value_str.splitlines()
 
-        foo=[
-          1,
-          2,
-          3,
-        ]
-        """
-        if len(value_lines) > 1:
+        if len(value_lines) <= 1:
+            # Value can fit in the previous line
+            result_lines[-1] = result_lines[-1] + value_lines[0]
+        else:
             # For the multi-line value, we want to print the first line of the value on the same line as the last line
             # of the key.
             result_lines[-1] = result_lines[-1] + value_lines[0]
             result_lines.extend(value_lines[1:])
-        else:
-            result_lines.append(value_lines[0])
 
         return indent_log_line("\n".join(result_lines), indent_prefix=self._indent_prefix)
 
@@ -256,8 +272,6 @@ class MetricFlowPrettyFormatter:
         if remaining_line_width is None or remaining_line_width > 0:
             comma_separated_items: List[str] = []
             for key, value in mapping.items():
-                if is_dataclass_like_object and not self._include_none_object_fields and value is None:
-                    continue
                 key_value_str_items: List[str] = []
 
                 if is_dataclass_like_object:
@@ -283,7 +297,7 @@ class MetricFlowPrettyFormatter:
                     value=value,
                     key_value_seperator=key_value_seperator,
                     is_dataclass_like_object=is_dataclass_like_object,
-                    remaining_line_width=remaining_line_width,
+                    remaining_line_width=(remaining_line_width - len(self._indent_prefix)),
                 )
             )
         lines = [left_enclose_str, ",\n".join(mapping_items_as_str) + ",", right_enclose_str]
@@ -404,3 +418,32 @@ def mf_pformat(  # type: ignore
         # This automatically includes the call trace.
         logger.exception("Error pretty printing due to an exception - using str() instead.")
         return str(obj)
+
+
+def mf_pformat_many(  # type: ignore
+    description: str,
+    obj_dict: Dict[str, Any],
+    max_line_length: int = 120,
+    indent_prefix: str = "  ",
+    include_object_field_names: bool = True,
+    include_none_object_fields: bool = False,
+    include_empty_object_fields: bool = False,
+) -> str:
+    """Prints many objects in an indented form."""
+    lines: List[str] = [description]
+    for key, value in obj_dict.items():
+        lines.append(f"{key}:")
+        lines.append(
+            indent_log_line(
+                mf_pformat(
+                    obj=value,
+                    max_line_length=max(0, max_line_length - len(indent_prefix)),
+                    indent_prefix=indent_prefix,
+                    include_object_field_names=include_object_field_names,
+                    include_none_object_fields=include_none_object_fields,
+                    include_empty_object_fields=include_empty_object_fields,
+                ),
+                indent_prefix=indent_prefix,
+            )
+        )
+    return "\n".join(lines)

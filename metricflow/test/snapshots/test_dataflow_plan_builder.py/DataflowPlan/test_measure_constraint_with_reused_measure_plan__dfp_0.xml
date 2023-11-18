@@ -8,7 +8,7 @@
             <!-- metric_spec =                                      -->
             <!--   {'class': 'MetricSpec',                          -->
             <!--    'element_name': 'instant_booking_value_ratio',  -->
-            <!--    'constraint': None,                             -->
+            <!--    'filter_specs': (),                             -->
             <!--    'alias': None,                                  -->
             <!--    'offset_window': None,                          -->
             <!--    'offset_to_grain': None}                        -->
@@ -18,23 +18,23 @@
                 <ComputeMetricsNode>
                     <!-- description = Compute Metrics via Expressions -->
                     <!-- node_id = cm_0 -->
-                    <!-- metric_spec =                                                                                                    -->
-                    <!--   {'class': 'MetricSpec',                                                                                        -->
-                    <!--    'element_name': 'booking_value',                                                                              -->
-                    <!--    'constraint': {'class': 'WhereFilterSpec',                                                                    -->
-                    <!--                   'where_sql': 'booking__is_instant',                                                            -->
-                    <!--                   'bind_parameters': {'class': 'SqlBindParameters',                                              -->
-                    <!--                                       'param_items': ()},                                                        -->
-                    <!--                   'linkable_spec_set': {'class': 'LinkableSpecSet',                                              -->
-                    <!--                                         'dimension_specs': ({'class': 'DimensionSpec',                           -->
-                    <!--                                                              'element_name': 'is_instant',                       -->
-                    <!--                                                              'entity_links': ({'class': 'EntityReference',       -->
-                    <!--                                                                                'element_name': 'booking'},)},),  -->
-                    <!--                                         'time_dimension_specs': (),                                              -->
-                    <!--                                         'entity_specs': ()}},                                                    -->
-                    <!--    'alias': 'booking_value_with_is_instant_constraint',                                                          -->
-                    <!--    'offset_window': None,                                                                                        -->
-                    <!--    'offset_to_grain': None}                                                                                      -->
+                    <!-- metric_spec =                                                                                                       -->
+                    <!--   {'class': 'MetricSpec',                                                                                           -->
+                    <!--    'element_name': 'booking_value',                                                                                 -->
+                    <!--    'filter_specs': ({'class': 'WhereFilterSpec',                                                                    -->
+                    <!--                      'where_sql': 'booking__is_instant',                                                            -->
+                    <!--                      'bind_parameters': {'class': 'SqlBindParameters',                                              -->
+                    <!--                                          'param_items': ()},                                                        -->
+                    <!--                      'linkable_spec_set': {'class': 'LinkableSpecSet',                                              -->
+                    <!--                                            'dimension_specs': ({'class': 'DimensionSpec',                           -->
+                    <!--                                                                 'element_name': 'is_instant',                       -->
+                    <!--                                                                 'entity_links': ({'class': 'EntityReference',       -->
+                    <!--                                                                                   'element_name': 'booking'},)},),  -->
+                    <!--                                            'time_dimension_specs': (),                                              -->
+                    <!--                                            'entity_specs': ()}},),                                                  -->
+                    <!--    'alias': 'booking_value_with_is_instant_constraint',                                                             -->
+                    <!--    'offset_window': None,                                                                                           -->
+                    <!--    'offset_to_grain': None}                                                                                         -->
                     <AggregateMeasuresNode>
                         <!-- description = Aggregate Measures -->
                         <!-- node_id = am_0 -->
@@ -92,18 +92,25 @@
                                     <!--    'date_part': None,                        -->
                                     <!--    'aggregation_state': None}                -->
                                     <!-- distinct = False -->
-                                    <MetricTimeDimensionTransformNode>
-                                        <!-- description = Metric Time Dimension 'ds' -->
-                                        <!-- node_id = sma_10001 -->
-                                        <!-- aggregation_time_dimension = ds -->
-                                        <ReadSqlSourceNode>
-                                            <!-- description =                                                                                    -->
-                                            <!--   Read From SemanticModelDataSet(SemanticModelReference(semantic_model_name='bookings_source'))  -->
-                                            <!-- node_id = rss_10011 -->
-                                            <!-- data_set =                                                                             -->
-                                            <!--   SemanticModelDataSet(SemanticModelReference(semantic_model_name='bookings_source'))  -->
-                                        </ReadSqlSourceNode>
-                                    </MetricTimeDimensionTransformNode>
+                                    <ConstrainTimeRangeNode>
+                                        <!-- description =                                                         -->
+                                        <!--   Constrain Time Range to [2000-01-01T00:00:00, 2040-12-31T00:00:00]  -->
+                                        <!-- node_id = ctr_0 -->
+                                        <!-- time_range_start = 2000-01-01T00:00:00 -->
+                                        <!-- time_range_end = 2040-12-31T00:00:00 -->
+                                        <MetricTimeDimensionTransformNode>
+                                            <!-- description = Metric Time Dimension 'ds' -->
+                                            <!-- node_id = sma_10001 -->
+                                            <!-- aggregation_time_dimension = ds -->
+                                            <ReadSqlSourceNode>
+                                                <!-- description =                                                                                    -->
+                                                <!--   Read From SemanticModelDataSet(SemanticModelReference(semantic_model_name='bookings_source'))  -->
+                                                <!-- node_id = rss_10011 -->
+                                                <!-- data_set =                                                                             -->
+                                                <!--   SemanticModelDataSet(SemanticModelReference(semantic_model_name='bookings_source'))  -->
+                                            </ReadSqlSourceNode>
+                                        </MetricTimeDimensionTransformNode>
+                                    </ConstrainTimeRangeNode>
                                 </FilterElementsNode>
                             </WhereConstraintNode>
                         </FilterElementsNode>
@@ -115,7 +122,7 @@
                     <!-- metric_spec =                        -->
                     <!--   {'class': 'MetricSpec',            -->
                     <!--    'element_name': 'booking_value',  -->
-                    <!--    'constraint': None,               -->
+                    <!--    'filter_specs': (),               -->
                     <!--    'alias': None,                    -->
                     <!--    'offset_window': None,            -->
                     <!--    'offset_to_grain': None}          -->
@@ -140,18 +147,25 @@
                             <!--    'date_part': None,                        -->
                             <!--    'aggregation_state': None}                -->
                             <!-- distinct = False -->
-                            <MetricTimeDimensionTransformNode>
-                                <!-- description = Metric Time Dimension 'ds' -->
-                                <!-- node_id = sma_10001 -->
-                                <!-- aggregation_time_dimension = ds -->
-                                <ReadSqlSourceNode>
-                                    <!-- description =                                                                                    -->
-                                    <!--   Read From SemanticModelDataSet(SemanticModelReference(semantic_model_name='bookings_source'))  -->
-                                    <!-- node_id = rss_10011 -->
-                                    <!-- data_set =                                                                             -->
-                                    <!--   SemanticModelDataSet(SemanticModelReference(semantic_model_name='bookings_source'))  -->
-                                </ReadSqlSourceNode>
-                            </MetricTimeDimensionTransformNode>
+                            <ConstrainTimeRangeNode>
+                                <!-- description =                                                         -->
+                                <!--   Constrain Time Range to [2000-01-01T00:00:00, 2040-12-31T00:00:00]  -->
+                                <!-- node_id = ctr_1 -->
+                                <!-- time_range_start = 2000-01-01T00:00:00 -->
+                                <!-- time_range_end = 2040-12-31T00:00:00 -->
+                                <MetricTimeDimensionTransformNode>
+                                    <!-- description = Metric Time Dimension 'ds' -->
+                                    <!-- node_id = sma_10001 -->
+                                    <!-- aggregation_time_dimension = ds -->
+                                    <ReadSqlSourceNode>
+                                        <!-- description =                                                                                    -->
+                                        <!--   Read From SemanticModelDataSet(SemanticModelReference(semantic_model_name='bookings_source'))  -->
+                                        <!-- node_id = rss_10011 -->
+                                        <!-- data_set =                                                                             -->
+                                        <!--   SemanticModelDataSet(SemanticModelReference(semantic_model_name='bookings_source'))  -->
+                                    </ReadSqlSourceNode>
+                                </MetricTimeDimensionTransformNode>
+                            </ConstrainTimeRangeNode>
                         </FilterElementsNode>
                     </AggregateMeasuresNode>
                 </ComputeMetricsNode>

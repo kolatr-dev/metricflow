@@ -1,0 +1,2 @@
+spec:
+    TimeDimension('common_entity__creation_time', time_granularity_name='day')

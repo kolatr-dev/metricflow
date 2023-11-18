@@ -1,0 +1,17 @@
+<GroupByItemResolutionDag>
+    <QueryGroupByItemResolutionNode>
+        <!-- description = Output the valid group by items in the metric query. -->
+        <!-- node_id = qr_1 -->
+        <!-- metrics_in_query = ["MetricReference(element_name='daily_metric_0')"] -->
+        <MetricGroupByItemResolutionNode>
+            <!-- description = Output the valid group by items for this metric. -->
+            <!-- node_id = mtr_0 -->
+            <!-- metric_reference = MetricReference(element_name='daily_metric_0') -->
+            <MeasureGroupByItemResolutionNode>
+                <!-- description = Output the group by items possible for a measure. -->
+                <!-- node_id = msr_0 -->
+                <!-- measure_reference = MeasureReference(element_name='daily_measure_0') -->
+            </MeasureGroupByItemResolutionNode>
+        </MetricGroupByItemResolutionNode>
+    </QueryGroupByItemResolutionNode>
+</GroupByItemResolutionDag>

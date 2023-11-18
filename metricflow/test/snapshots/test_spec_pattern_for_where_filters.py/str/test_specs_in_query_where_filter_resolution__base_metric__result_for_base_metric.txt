@@ -1,0 +1,17 @@
+CallParameterSetToSpecMappingSet(
+  issue_set=MetricFlowQueryResolutionIssueSet(issues=()),
+  call_parameter_set_to_spec_mappings=(
+      CallParameterSetToSpecMapping(
+        applicability_key=
+          CallParameterSetApplicabilityKey(metric_references=(MetricReference(element_name='daily_metric_0'))),
+        call_parameter_set=TimeDimensionCallParameterSet(
+            entity_path=(),
+            time_dimension_reference=TimeDimensionReference(element_name='metric_time')
+        ),
+        issue_set=MetricFlowQueryResolutionIssueSet(issues=()),
+        resolution_path=MetricFlowQueryResolutionPath(resolution_path_nodes=(MergeCandidatesAtQueryNode(node_id=maq_0))),
+        resolved_spec=
+          TimeDimensionSpec(element_name='metric_time', entity_links=(), time_granularity=TimeGranularity.DAY)
+      )
+  )
+)
