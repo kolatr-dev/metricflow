@@ -22,7 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 class ParameterSetField(Enum):
-    """The fields of the EntityLinkPatternParameterSet classes used for matching in the EntityLinkPattern."""
+    """The fields of the EntityLinkPatternParameterSet class used for matching in the EntityLinkPattern.
+
+    Considering moving this to be a part of the specs module.
+    """
 
     ELEMENT_NAME = "element_name"
     ENTITY_LINKS = "entity_links"
@@ -42,12 +45,13 @@ class EntityLinkPatternParameterSet:
     entity_links: Optional[Tuple[EntityReference, ...]] = None
     # If specified, match only time dimensions with the following properties.
     time_granularity: Optional[TimeGranularity] = None
+    # It seems that date part is always compared - need to verify.
     date_part: Optional[DatePart] = None
 
 
 @dataclass(frozen=True)
 class EntityLinkPattern(SpecPattern):
-    """A pattern that matches group-by-items using the entity link path specification.
+    """A pattern that matches group-by-items using the entity-link-path specification.
 
     The entity link path specifies how a group-by-item for a metric query should be constructed. The group-by-item
     is obtained by joining the semantic model containing the measure to a semantic model containing the group-by-
@@ -63,20 +67,30 @@ class EntityLinkPattern(SpecPattern):
         matching_specs: List[LinkableInstanceSpec] = []
 
         # Using some Python introspection magic to figure out specs that match the listed fields.
-        keys_to_keep = set(field_to_compare.value for field_to_compare in self.parameter_set.fields_to_compare)
-        pattern_parameters_as_dict = asdict(self.parameter_set)
+        keys_to_check = set(field_to_compare.value for field_to_compare in self.parameter_set.fields_to_compare)
+        asdict(self.parameter_set)
         # Checks that EntityLinkPatternParameterSetField is valid wrt to the parameter set.
-        for key_to_keep in keys_to_keep:
-            if key_to_keep not in pattern_parameters_as_dict:
-                raise RuntimeError(f"{key_to_keep} is not a valid field in {self.parameter_set}")
+        parameter_set_values = tuple(getattr(self.parameter_set, key_to_check) for key_to_check in keys_to_check)
 
         for spec in candidate_specs:
-            spec_as_dict = {key: value for key, value in asdict(spec).items() if key in keys_to_keep}
-            pattern_parameters_as_dict = {
-                key: value for key, value in pattern_parameters_as_dict.items() if key in keys_to_keep
-            }
+            # spec_values = tuple(
+            #     getattr(spec, key_to_check)
+            #     for key_to_check in keys_to_check
+            #     if hasattr(spec, key_to_check)
+            # )
 
-            if spec_as_dict == pattern_parameters_as_dict:
+            spec_values = tuple(
+                (getattr(spec, key_to_check) if hasattr(spec, key_to_check) else None) for key_to_check in keys_to_check
+            )
+            # logger.error(f"pattern_parameters is: {self.parameter_set}\n")
+
+            # comparison_result = spec_values == parameter_set_values
+            # logger.error(
+            #     f"spec_as_dict is: {spec_values}\n"
+            #     f"pattern_parameters_as_dict is: {parameter_set_values}\n"
+            #     f"comparison_result is: {comparison_result}"
+            # )
+            if spec_values == parameter_set_values:
                 matching_specs.append(spec)
 
         return matching_specs
@@ -88,7 +102,7 @@ class DimensionPattern(EntityLinkPattern):
 
     @override
     def match(self, candidate_specs: Sequence[LinkableInstanceSpec]) -> Sequence[LinkableInstanceSpec]:
-        spec_set = LinkableSpecSet.from_specs(candidate_specs)
+        spec_set = LinkableSpecSet.from_specs(tuple(candidate_specs))
         filtered_specs: Sequence[LinkableInstanceSpec] = spec_set.dimension_specs + spec_set.time_dimension_specs
         return super().match(filtered_specs)
 
@@ -110,11 +124,14 @@ class DimensionPattern(EntityLinkPattern):
 
 @dataclass(frozen=True)
 class TimeDimensionPattern(EntityLinkPattern):
-    """Similar to EntityPathPattern but only matches time dimensions."""
+    """Similar to EntityPathPattern but only matches time dimensions.
+
+    TODO: Add tests.
+    """
 
     @override
     def match(self, candidate_specs: Sequence[LinkableInstanceSpec]) -> Sequence[LinkableInstanceSpec]:
-        spec_set = LinkableSpecSet.from_specs(candidate_specs)
+        spec_set = LinkableSpecSet.from_specs(tuple(candidate_specs))
         return super().match(spec_set.time_dimension_specs)
 
     @staticmethod
@@ -124,6 +141,7 @@ class TimeDimensionPattern(EntityLinkPattern):
         fields_to_compare: List[ParameterSetField] = [
             ParameterSetField.ELEMENT_NAME,
             ParameterSetField.ENTITY_LINKS,
+            ParameterSetField.DATE_PART,
         ]
 
         if time_dimension_call_parameter_set.time_granularity is not None:
@@ -131,28 +149,29 @@ class TimeDimensionPattern(EntityLinkPattern):
 
         return TimeDimensionPattern(
             parameter_set=EntityLinkPatternParameterSet(
-                fields_to_compare=(
-                    ParameterSetField.ELEMENT_NAME,
-                    ParameterSetField.ENTITY_LINKS,
-                ),
+                fields_to_compare=tuple(fields_to_compare),
                 element_name=time_dimension_call_parameter_set.time_dimension_reference.element_name,
                 entity_links=time_dimension_call_parameter_set.entity_path,
                 time_granularity=time_dimension_call_parameter_set.time_granularity,
+                date_part=time_dimension_call_parameter_set.date_part,
             )
         )
 
     @staticmethod
     def from_time_dimension_spec(time_dimension_spec: TimeDimensionSpec) -> TimeDimensionPattern:  # noqa: D
+        # TODO: Fix for date_part
         return TimeDimensionPattern(
             parameter_set=EntityLinkPatternParameterSet(
                 fields_to_compare=(
                     ParameterSetField.ELEMENT_NAME,
                     ParameterSetField.ENTITY_LINKS,
                     ParameterSetField.TIME_GRANULARITY,
+                    ParameterSetField.DATE_PART,
                 ),
                 element_name=time_dimension_spec.element_name,
                 entity_links=time_dimension_spec.entity_links,
                 time_granularity=time_dimension_spec.time_granularity,
+                date_part=time_dimension_spec.date_part,
             )
         )
 
@@ -163,7 +182,7 @@ class EntityPattern(EntityLinkPattern):
 
     @override
     def match(self, candidate_specs: Sequence[LinkableInstanceSpec]) -> Sequence[LinkableInstanceSpec]:
-        spec_set = LinkableSpecSet.from_specs(candidate_specs)
+        spec_set = LinkableSpecSet.from_specs(tuple(candidate_specs))
         return super().match(spec_set.entity_specs)
 
     @staticmethod

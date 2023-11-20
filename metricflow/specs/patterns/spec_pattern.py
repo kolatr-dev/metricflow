@@ -14,5 +14,9 @@ class SpecPattern(ABC):
 
     @abstractmethod
     def match(self, candidate_specs: Sequence[LinkableInstanceSpec]) -> Sequence[LinkableInstanceSpec]:
-        """Given a sequence of candidate specs, return the ones that match this pattern."""
+        """Given candidate specs, return the ones that match this pattern."""
         raise NotImplementedError
+
+    def matches_any(self, candidate_specs: Sequence[LinkableInstanceSpec]) -> bool:
+        """Returns true if this spec matches any of the given specs."""
+        return len(self.match(candidate_specs)) > 0

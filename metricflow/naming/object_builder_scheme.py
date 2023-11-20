@@ -71,6 +71,7 @@ class ObjectBuilderNamingScheme(QueryItemNamingScheme):
                     fields_to_compare=(
                         ParameterSetField.ELEMENT_NAME,
                         ParameterSetField.ENTITY_LINKS,
+                        ParameterSetField.DATE_PART,
                     ),
                 )
             )
@@ -79,13 +80,11 @@ class ObjectBuilderNamingScheme(QueryItemNamingScheme):
             fields_to_compare = [
                 ParameterSetField.ELEMENT_NAME,
                 ParameterSetField.ENTITY_LINKS,
+                ParameterSetField.DATE_PART,
             ]
 
             if time_dimension_call_parameter_set.time_granularity is not None:
                 fields_to_compare.append(ParameterSetField.TIME_GRANULARITY)
-
-            if time_dimension_call_parameter_set.date_part is not None:
-                fields_to_compare.append(ParameterSetField.DATE_PART)
 
             return TimeDimensionPattern(
                 EntityLinkPatternParameterSet(
@@ -128,6 +127,10 @@ class ObjectBuilderNamingScheme(QueryItemNamingScheme):
         except ParseWhereFilterException:
             return False
 
+    @override
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(id()={hex(id(self))})"
+
 
 class _ObjectBuilderNameTransform(LinkableSpecSetTransform[Sequence[str]]):
     """Transforms specs into strings following the object builder scheme."""
@@ -146,17 +149,17 @@ class _ObjectBuilderNameTransform(LinkableSpecSetTransform[Sequence[str]]):
         initializer_parameters = []
         entity_link_names = list(entity_link.element_name for entity_link in entity_links)
         if len(entity_link_names) > 0:
-            initializer_parameters.append(f"'{entity_link_names[-1]}{DUNDER}{element_name}'")
+            initializer_parameters.append(repr(entity_link_names[-1] + DUNDER + element_name))
         else:
-            initializer_parameters.append(f"'{element_name}'")
+            initializer_parameters.append(repr(element_name))
         if time_granularity is not None:
             initializer_parameters.append(
-                f"time_granularity_name='{time_granularity.value}'",
+                f"'{time_granularity.value}'",
             )
         if date_part is not None:
-            initializer_parameters.append(f"date_part_name='{date_part.value}'")
+            initializer_parameters.append(f"date_part_name={repr(date_part.value)}")
         if len(entity_link_names) > 1:
-            initializer_parameters.append(f"entity_path={str(entity_link_names[:-1])}")
+            initializer_parameters.append(f"entity_path={repr(entity_link_names[:-1])}")
 
         return ", ".join(initializer_parameters)
 

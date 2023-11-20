@@ -1,0 +1,2 @@
+spec:
+    TimeDimension('metric_time', 'month')

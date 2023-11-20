@@ -188,3 +188,12 @@ class MetricAccessor(ABC):
         - Derived & ratio metrics take no input measures, only input metrics.
         """
         raise NotImplementedError
+
+    # @abstractmethod
+    # def group_by_item_specs_for_no_metrics_query(
+    #         self,
+    #         with_any_of: Optional[Set[LinkableElementProperties]] = None,
+    #         without_any_of: Optional[Set[LinkableElementProperties]] = None,
+    #     ) -> Sequence[LinkableInstanceSpec]:
+    #     """"""
+    #     raise NotImplementedError

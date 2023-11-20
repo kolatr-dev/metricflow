@@ -61,10 +61,16 @@ class DunderNamingScheme(QueryItemNamingScheme):
     @override
     def spec_pattern(self, input_str: str) -> EntityLinkPattern:
         if not self.input_str_follows_scheme(input_str):
-            raise RuntimeError(f"`{input_str}` does not follow this scheme.")
+            raise RuntimeError(f"{repr(input_str)} does not follow this scheme.")
+
+        input_str = input_str.lower()
 
         input_str_parts = input_str.split(DUNDER)
-        fields_to_compare: Tuple[ParameterSetField, ...] = (ParameterSetField.ELEMENT_NAME,)
+        fields_to_compare: Tuple[ParameterSetField, ...] = (
+            ParameterSetField.ELEMENT_NAME,
+            ParameterSetField.ENTITY_LINKS,
+            ParameterSetField.DATE_PART,
+        )
 
         time_grain = None
 
@@ -73,7 +79,7 @@ class DunderNamingScheme(QueryItemNamingScheme):
             return EntityLinkPattern(
                 parameter_set=EntityLinkPatternParameterSet(
                     element_name=input_str_parts[0],
-                    entity_links=None,
+                    entity_links=(),
                     time_granularity=time_grain,
                     date_part=None,
                     fields_to_compare=tuple(fields_to_compare),
@@ -93,14 +99,13 @@ class DunderNamingScheme(QueryItemNamingScheme):
                 return EntityLinkPattern(
                     parameter_set=EntityLinkPatternParameterSet(
                         element_name=input_str_parts[-1],
-                        entity_links=None,
+                        entity_links=(),
                         time_granularity=time_grain,
                         date_part=None,
                         fields_to_compare=fields_to_compare,
                     )
                 )
             # e.g. "messages__ds__month"
-            fields_to_compare = fields_to_compare + (ParameterSetField.ENTITY_LINKS,)
             return EntityLinkPattern(
                 parameter_set=EntityLinkPatternParameterSet(
                     element_name=input_str_parts[-2],
@@ -112,7 +117,6 @@ class DunderNamingScheme(QueryItemNamingScheme):
             )
 
         # e.g. "messages__ds"
-        fields_to_compare = fields_to_compare + (ParameterSetField.ENTITY_LINKS,)
         return EntityLinkPattern(
             parameter_set=EntityLinkPatternParameterSet(
                 element_name=input_str_parts[-1],
@@ -139,6 +143,10 @@ class DunderNamingScheme(QueryItemNamingScheme):
                 return False
 
         return True
+
+    @override
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(id()={hex(id(self))})"
 
 
 class _DunderNameTransform(LinkableSpecSetTransform[Sequence[str]]):

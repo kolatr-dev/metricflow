@@ -259,3 +259,20 @@ def node_output_resolver(  # noqa:D
         column_association_resolver=DunderColumnAssociationResolver(simple_semantic_manifest_lookup),
         semantic_manifest_lookup=simple_semantic_manifest_lookup,
     )
+
+
+@pytest.fixture(scope="session")
+def ambiguous_resolution_manifest(template_mapping: Dict[str, str]) -> PydanticSemanticManifest:
+    manifest_name = "ambiguous_resolution_manifest"
+    build_result = load_semantic_manifest(manifest_name, template_mapping)
+    if len(build_result.issues.errors) > 0:
+        raise RuntimeError(f"Got issues while building {manifest_name}: {build_result.issues}")
+
+    return build_result.semantic_manifest
+
+
+@pytest.fixture(scope="session")
+def ambiguous_resolution_manifest_lookup(template_mapping: Dict[str, str]) -> SemanticManifestLookup:
+    """Manifest used to test ambiguous resolution of group-by-items."""
+    build_result = load_semantic_manifest("ambiguous_resolution_manifest", template_mapping)
+    return SemanticManifestLookup(build_result.semantic_manifest)

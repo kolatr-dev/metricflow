@@ -1,0 +1,2 @@
+spec:
+    TimeDimension('metric_time', time_granularity_name='day')

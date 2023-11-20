@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Optional, Sequence
+
+from typing_extensions import override
+
+from metricflow.naming.naming_scheme import QueryItemNamingScheme
+from metricflow.query.group_by_item.candidate_push_down.group_by_item_candidate import GroupByItemCandidateSet
+from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
+from metricflow.query.issues.issues_base import (
+    MetricFlowQueryIssueType,
+    MetricFlowQueryResolutionIssue,
+    MetricFlowQueryResolutionPath,
+)
+from metricflow.specs.patterns.spec_pattern import SpecPattern
+
+
+@dataclass(frozen=True)
+class InsufficientSpecificityForGroupByItem(MetricFlowQueryResolutionIssue):
+    spec_pattern: SpecPattern
+    candidate_sets: Sequence[GroupByItemCandidateSet]
+
+    @staticmethod
+    def create(  # noqa: D
+        spec_pattern: SpecPattern,
+        candidate_sets: Sequence[GroupByItemCandidateSet],
+        query_resolution_path: MetricFlowQueryResolutionPath,
+    ) -> InsufficientSpecificityForGroupByItem:
+        return InsufficientSpecificityForGroupByItem(
+            issue_type=MetricFlowQueryIssueType.ERROR,
+            parent_issues=(),
+            spec_pattern=spec_pattern,
+            candidate_sets=candidate_sets,
+            query_resolution_path=query_resolution_path,
+        )
+
+    @override
+    def ui_description(self, naming_scheme: Optional[QueryItemNamingScheme]) -> str:
+        return "The given input is ambiguous and can't be resolved."
+
+    @override
+    def with_path_prefix(self, path_prefix_node: GroupByItemResolutionNode) -> InsufficientSpecificityForGroupByItem:
+        return InsufficientSpecificityForGroupByItem(
+            issue_type=self.issue_type,
+            parent_issues=tuple(issue.with_path_prefix(path_prefix_node) for issue in self.parent_issues),
+            query_resolution_path=self.query_resolution_path.with_path_prefix(path_prefix_node),
+            spec_pattern=self.spec_pattern,
+            candidate_sets=self.candidate_sets,
+        )

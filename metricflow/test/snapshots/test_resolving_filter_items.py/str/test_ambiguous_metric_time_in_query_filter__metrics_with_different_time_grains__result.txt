@@ -1,0 +1,10 @@
+spec:
+    None
+issue_0_description:
+    Query(['daily_metric_0', 'monthly_metric_0']) is built from Metric('daily_metric_0'), Metric('monthly_metric_0'). However, the given input does not match to a common item that is available to those parents:
+      Matching items for: Metric('daily_metric_0'):
+          TimeDimension('metric_time', 'day')
+      Matching items for: Metric('monthly_metric_0'):
+          TimeDimension('metric_time', 'month')
+issue_0_location:
+    [Resolve Query(['daily_metric_0', 'monthly_metric_0'])]

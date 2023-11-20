@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, FrozenSet, List, Optional, Sequence
+from typing import Dict, FrozenSet, List, Optional, Sequence, Set
 
 from dbt_semantic_interfaces.enum_extension import assert_values_exhausted
 from dbt_semantic_interfaces.implementations.filters.where_filter import PydanticWhereFilterIntersection
@@ -9,7 +9,7 @@ from dbt_semantic_interfaces.implementations.metric import PydanticMetricTimeWin
 from dbt_semantic_interfaces.protocols import WhereFilter
 from dbt_semantic_interfaces.protocols.metric import Metric, MetricInputMeasure, MetricType
 from dbt_semantic_interfaces.protocols.semantic_manifest import SemanticManifest
-from dbt_semantic_interfaces.references import MetricReference
+from dbt_semantic_interfaces.references import MeasureReference, MetricReference
 
 from metricflow.errors.errors import DuplicateMetricError, MetricNotFoundError, NonExistentMeasureError
 from metricflow.model.semantics.linkable_element_properties import LinkableElementProperties
@@ -55,6 +55,45 @@ class MetricLookup(MetricAccessor):  # noqa: D
             metric_references=metric_references,
             with_any_of=with_any_property,
             without_any_of=without_any_property,
+        ).as_spec_set
+
+        return sorted(all_linkable_specs.as_tuple, key=lambda x: x.qualified_name)
+
+    def group_by_item_specs_for_measure(
+        self,
+        measure_reference: MeasureReference,
+        with_any_of: Optional[Set[LinkableElementProperties]] = None,
+        without_any_of: Optional[Set[LinkableElementProperties]] = None,
+    ) -> Sequence[LinkableInstanceSpec]:
+        """Return group-by-items that are possible for a measure.
+
+        TODO: May need to move to a more appropriate class.
+        """
+        frozen_with_any_of = (
+            LinkableElementProperties.all_properties() if with_any_of is None else frozenset(with_any_of)
+        )
+        frozen_without_any_of = frozenset() if without_any_of is None else frozenset(without_any_of)
+
+        return self._linkable_spec_resolver.get_linkable_element_set_for_measure(
+            measure_reference=measure_reference,
+            with_any_of=frozen_with_any_of,
+            without_any_of=frozen_without_any_of,
+        ).as_spec_set.as_tuple
+
+    def group_by_item_specs_for_no_metrics_query(
+        self,
+        with_any_of: Optional[Set[LinkableElementProperties]] = None,
+        without_any_of: Optional[Set[LinkableElementProperties]] = None,
+    ) -> Sequence[LinkableInstanceSpec]:
+        """Return the possible group-by-items for a dimension values query with no metrics."""
+        frozen_with_any_of = (
+            LinkableElementProperties.all_properties() if with_any_of is None else frozenset(with_any_of)
+        )
+        frozen_without_any_of = frozenset() if without_any_of is None else frozenset(without_any_of)
+
+        all_linkable_specs = self._linkable_spec_resolver.get_linkable_elements_for_group_by_item_query(
+            with_any_of=frozen_with_any_of,
+            without_any_of=frozen_without_any_of,
         ).as_spec_set
 
         return sorted(all_linkable_specs.as_tuple, key=lambda x: x.qualified_name)
@@ -166,3 +205,26 @@ class MetricLookup(MetricAccessor):  # noqa: D
             )
             input_metric_specs.append(spec)
         return tuple(input_metric_specs)
+
+    def is_base_metric(self, metric_reference: MetricReference) -> bool:
+        """Returns true if the given metric is not defined in terms of other metrics."""
+        metric = self.get_metric(metric_reference)
+
+        if metric.type is MetricType.SIMPLE or metric.type is MetricType.CUMULATIVE:
+            return True
+        elif metric.type is MetricType.RATIO or metric.type is MetricType.DERIVED:
+            return False
+
+        assert_values_exhausted(metric.type)
+
+    def parent_metrics(self, metric_reference: MetricReference) -> Sequence[MetricReference]:
+        """Returns the immediate parent metrics of the given metric.
+
+        If the given metric is not defined in terms of other metrics, this will return an empty sequence.
+        """
+        if self.is_base_metric(metric_reference):
+            return ()
+
+        metric = self.get_metric(metric_reference)
+
+        return tuple(metric_input.as_reference for metric_input in metric.input_metrics)

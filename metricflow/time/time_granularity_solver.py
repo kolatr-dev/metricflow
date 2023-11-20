@@ -16,11 +16,15 @@ from dbt_semantic_interfaces.references import (
 from dbt_semantic_interfaces.type_enums.date_part import DatePart
 from dbt_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 
+from metricflow.collection_helpers.pretty_print import mf_pformat
 from metricflow.dataflow.builder.node_data_set import DataflowPlanNodeOutputDataSetResolver
 from metricflow.dataflow.dataflow_plan import ReadSqlSourceNode
 from metricflow.filters.time_constraint import TimeRangeConstraint
 from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
 from metricflow.naming.linkable_spec_name import StructuredLinkableSpecName
+from metricflow.query.group_by_item.dag_builder import GroupByItemResolutionDagBuilder
+from metricflow.query.group_by_item.group_by_item_resolver import GroupByItemResolver
+from metricflow.specs.patterns.entity_link_pattern import TimeDimensionPattern
 from metricflow.specs.specs import (
     TimeDimensionSpec,
 )
@@ -85,6 +89,13 @@ class TimeGranularitySolver:
                     time_dimension_instance.spec.time_granularity
                 )
 
+    def _get_group_by_item_resolver(self, metric_references: Sequence[MetricReference]) -> GroupByItemResolver:
+        resolution_dag = GroupByItemResolutionDagBuilder(manifest_lookup=self._semantic_manifest_lookup).build(
+            metric_references, where_filter_intersection=None
+        )
+
+        return GroupByItemResolver(manifest_lookup=self._semantic_manifest_lookup, resolution_dag=resolution_dag)
+
     def validate_time_granularity(
         self, metric_references: Sequence[MetricReference], time_dimension_specs: Sequence[TimeDimensionSpec]
     ) -> None:
@@ -94,24 +105,17 @@ class TimeGranularitySolver:
         """
         if not metric_references:
             return None
-
-        valid_group_by_elements = self._semantic_manifest_lookup.metric_lookup.linkable_set_for_metrics(
-            metric_references=metric_references,
-        )
+        resolver = self._get_group_by_item_resolver(metric_references)
 
         for time_dimension_spec in time_dimension_specs:
-            match_found = False
-            for path_key in valid_group_by_elements.path_key_to_linkable_dimensions:
-                if (
-                    path_key.element_name == time_dimension_spec.element_name
-                    and (path_key.entity_links == time_dimension_spec.entity_links)
-                    and path_key.time_granularity == time_dimension_spec.time_granularity
-                ):
-                    match_found = True
-                    break
-            if not match_found:
+            resolution = resolver.resolve_matching_item_for_querying(
+                spec_pattern=TimeDimensionPattern.from_time_dimension_spec(time_dimension_spec),
+            )
+            if resolution.spec is None:
                 raise RequestTimeGranularityException(
-                    f"{time_dimension_spec} is not valid for querying {metric_references}"
+                    f"{time_dimension_spec} is not valid for querying {metric_references}. "
+                    f"Got issues:\n"
+                    f"{mf_pformat(resolution.issue_set)}"
                 )
 
     def resolve_granularity_for_partial_time_dimension_specs(
