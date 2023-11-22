@@ -20,8 +20,8 @@ from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
 from metricflow.naming.naming_scheme import QueryItemNamingScheme
 from metricflow.query.group_by_item.resolution_dag import GroupByItemResolutionDag
 from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import (
-    ResolvedSpecLookup,
-    WhereFilterLinkableSpecResolver,
+    FilterSpecResolutionLookUp,
+    WhereFilterSpecResolver,
 )
 from metricflow.test.fixtures.setup_fixtures import MetricFlowTestSessionState
 from metricflow.test.model.modify.copy_manifest import copy_manifest
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 def assert_call_parameter_set_mapping_snapshot_equal(
     request: FixtureRequest,
     mf_test_session_state: MetricFlowTestSessionState,
-    resolution_result: ResolvedSpecLookup,
+    resolution_result: FilterSpecResolutionLookUp,
 ) -> None:
     assert_object_snapshot_equal(
         request=request,
@@ -58,7 +58,7 @@ def test_specs_in_query_where_filter_resolution(  # noqa: D
     case_id = AmbiguousResolutionQueryId(dag_case_id)
     resolution_dag = resolution_dags[case_id]
 
-    spec_pattern_resolver = WhereFilterLinkableSpecResolver(
+    spec_pattern_resolver = WhereFilterSpecResolver(
         manifest_lookup=ambiguous_resolution_manifest_lookup,
         resolution_dag=resolution_dag,
     )
@@ -88,7 +88,7 @@ def check_resolution_with_filter(
         queried_metrics=queried_metrics,
     )
 
-    spec_pattern_resolver = WhereFilterLinkableSpecResolver(
+    spec_pattern_resolver = WhereFilterSpecResolver(
         manifest_lookup=manifest_lookup,
         resolution_dag=resolution_dag,
     )

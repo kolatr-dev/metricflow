@@ -22,7 +22,7 @@ class QueryItemNamingScheme(ABC):
         invalid.
 
         If this scheme cannot accommodate the spec, return None. This is needed to handle a case with DatePart in
-        DunderNamingScheme, but naming schemes should otherwise be complete.
+        DunderNamingScheme right now, but this could be resolved once that's figured out.
         """
         pass
 

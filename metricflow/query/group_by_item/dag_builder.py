@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Optional, Sequence
 
+from dbt_semantic_interfaces.implementations.filters.where_filter import PydanticWhereFilterIntersection
 from dbt_semantic_interfaces.protocols import WhereFilterIntersection
 from dbt_semantic_interfaces.references import MetricReference
 
@@ -66,7 +67,7 @@ class GroupByItemResolutionDagBuilder:
         )
 
     def _build_dag_from_query_node(
-        self, metric_references: Sequence[MetricReference], where_filter_intersection: Optional[WhereFilterIntersection]
+        self, metric_references: Sequence[MetricReference], where_filter_intersection: WhereFilterIntersection
     ) -> QueryGroupByItemResolutionNode:
         if len(metric_references) == 0:
             return QueryGroupByItemResolutionNode(
@@ -92,6 +93,7 @@ class GroupByItemResolutionDagBuilder:
         return GroupByItemResolutionDag(
             sink_node=self._build_dag_from_query_node(
                 metric_references=metric_references,
-                where_filter_intersection=where_filter_intersection,
+                where_filter_intersection=where_filter_intersection
+                or PydanticWhereFilterIntersection(where_filters=[]),
             )
         )

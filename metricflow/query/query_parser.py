@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 import logging
-import textwrap
 from typing import List, Optional, Sequence, Tuple
 
 import pandas as pd
@@ -270,6 +269,7 @@ class MetricFlowQueryParser:
         input_to_issue_set: InputToIssueSetMapping,
     ) -> Optional[str]:
         lines: List[str] = ["Got errors while resolving the query."]
+        issue_counter = 0
 
         for item in input_to_issue_set.items:
             resolver_input = item.resolver_input
@@ -279,13 +279,13 @@ class MetricFlowQueryParser:
                 continue
 
             lines.append(f"\nQuery input: {resolver_input.ui_description} has errors:")
-            naming_scheme = resolver_input.ui_description_naming_scheme()
             issue_set_lines: List[str] = []
-            for i, error_issue in enumerate(issue_set.errors):
+            for error_issue in issue_set.errors:
+                issue_counter += 1
                 issue_set_lines.extend(
                     [
-                        f"Error Issue #{i+1}:\n",
-                        error_issue.ui_description(naming_scheme),
+                        f"Error Issue #{issue_counter}:\n",
+                        error_issue.ui_description(resolver_input),
                     ]
                 )
 
@@ -297,7 +297,7 @@ class MetricFlowQueryParser:
                         ]
                     )
 
-            lines.extend(textwrap.indent(issue_set_line, prefix="  ") for issue_set_line in issue_set_lines)
+            lines.extend(indent_log_line(issue_set_line) for issue_set_line in issue_set_lines)
 
         return "\n".join(lines)
 
@@ -372,7 +372,7 @@ class MetricFlowQueryParser:
                     spec_pattern = naming_scheme.spec_pattern(group_by_name)
                     resolver_input = StringResolverInputForGroupBy(
                         input_obj=group_by_name,
-                        naming_scheme=naming_scheme,
+                        input_obj_naming_scheme=naming_scheme,
                         spec_pattern=spec_pattern,
                     )
                     resolver_inputs_for_group_by.append(resolver_input)

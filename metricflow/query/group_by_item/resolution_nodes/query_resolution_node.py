@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional, Sequence, Union
+from typing import List, Sequence, Union
 
 from dbt_semantic_interfaces.protocols import WhereFilterIntersection
 from dbt_semantic_interfaces.references import MetricReference
@@ -22,7 +22,7 @@ class QueryGroupByItemResolutionNode(GroupByItemResolutionNode):
         self,
         parent_nodes: Sequence[Union[MetricGroupByItemResolutionNode, AnyModelGroupByItemResolutionNode]],
         metrics_in_query: Sequence[MetricReference],
-        where_filter_intersection: Optional[WhereFilterIntersection],
+        where_filter_intersection: WhereFilterIntersection,
     ) -> None:
         self._parent_nodes = tuple(parent_nodes)
         self._metrics_in_query = tuple(metrics_in_query)
@@ -63,7 +63,7 @@ class QueryGroupByItemResolutionNode(GroupByItemResolutionNode):
         ]
 
     @property
-    def where_filter_intersection(self) -> Optional[WhereFilterIntersection]:
+    def where_filter_intersection(self) -> WhereFilterIntersection:
         return self._where_filter_intersection
 
     @property

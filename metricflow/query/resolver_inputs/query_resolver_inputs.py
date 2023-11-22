@@ -21,7 +21,8 @@ class MetricFlowQueryResolverInput(ABC):
     def ui_description(self) -> str:
         raise NotImplementedError
 
-    def ui_description_naming_scheme(self) -> Optional[QueryItemNamingScheme]:
+    @property
+    def naming_scheme(self) -> Optional[QueryItemNamingScheme]:
         return None
 
 
@@ -58,17 +59,18 @@ class ResolverInputForMetric(MetricFlowQueryResolverInput):
 @dataclass(frozen=True)
 class ResolverInputForGroupBy(MetricFlowQueryResolverInput):
     input_obj: Union[GroupByParameter, str]
-    naming_scheme: QueryItemNamingScheme
+    input_obj_naming_scheme: QueryItemNamingScheme
     spec_pattern: SpecPattern
 
     @property
     @override
     def ui_description(self) -> str:
-        return repr(self.input_obj)
+        return str(self.input_obj)
 
+    @property
     @override
-    def ui_description_naming_scheme(self) -> Optional[QueryItemNamingScheme]:
-        return self.naming_scheme
+    def naming_scheme(self) -> Optional[QueryItemNamingScheme]:
+        return self.input_obj_naming_scheme
 
 
 @dataclass(frozen=True)
@@ -83,9 +85,10 @@ class ResolverInputForOrderBy(MetricFlowQueryResolverInput):
     def ui_description(self) -> str:
         return self.input_item_to_order.ui_description
 
+    @property
     @override
-    def ui_description_naming_scheme(self) -> Optional[QueryItemNamingScheme]:
-        return self.input_item_to_order.ui_description_naming_scheme()
+    def naming_scheme(self) -> Optional[QueryItemNamingScheme]:
+        return self.input_item_to_order.naming_scheme
 
     # @property
     # @abstractmethod
@@ -105,10 +108,6 @@ class NonMatchingInput(MetricFlowQueryResolverInput):
     @property
     def ui_description(self) -> str:
         return repr(self.input_obj)
-
-    @property
-    def naming_scheme(self) -> Optional[QueryItemNamingScheme]:
-        return None
 
 
 @dataclass(frozen=True)
@@ -142,7 +141,8 @@ class ResolverInputForWhereFilterIntersection(MetricFlowQueryResolverInput):
             + ")"
         )
 
-    def ui_description_naming_scheme(self) -> Optional[QueryItemNamingScheme]:
+    @property
+    def naming_scheme(self) -> Optional[QueryItemNamingScheme]:
         return ObjectBuilderNamingScheme()
 
 

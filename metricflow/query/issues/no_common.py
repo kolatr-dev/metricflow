@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import textwrap
 from dataclasses import dataclass
 from typing import Dict, Optional, Sequence, Tuple
 
-from dbt_semantic_interfaces.pretty_print import pformat_big_objects
 from typing_extensions import override
 
-from metricflow.naming.naming_scheme import QueryItemNamingScheme
+from metricflow.collection_helpers.pretty_print import mf_pformat
+from metricflow.formatting import indent_log_line
 from metricflow.query.group_by_item.candidate_push_down.group_by_item_candidate import GroupByItemCandidateSet
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
 from metricflow.query.issues.issues_base import (
@@ -15,17 +14,7 @@ from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
-
-#
-# @dataclass(frozen=True)
-# class LocatedCandidateSet:
-#     resolution_node: GroupByItemResolutionNode
-#     candidate_set: GroupByItemCandidateSet
-#
-#     def with_path_prefix(self, path_prefix: MetricFlowQueryResolutionPath) -> LocatedCandidateSet:
-#         return LocatedCandidateSet(
-#             resolution_node=self.resolution_node, candidate_set=self.candidate_set.with_path_prefix(path_prefix)
-#         )
+from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
 
 
 @dataclass(frozen=True)
@@ -46,11 +35,12 @@ class NoCommonItemsInParents(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, naming_scheme: Optional[QueryItemNamingScheme]) -> str:
+    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
         last_path_item = self.query_resolution_path.last_item
         last_path_item_parent_descriptions = ", ".join(
             [parent_node.ui_description for parent_node in last_path_item.parent_nodes]
         )
+        naming_scheme = associated_input.naming_scheme if associated_input is not None else None
 
         parent_to_available_items = {}
         for candidate_set in self.parent_candidate_sets:
@@ -64,8 +54,10 @@ class NoCommonItemsInParents(MetricFlowQueryResolutionIssue):
             )
         return (
             f"{last_path_item.ui_description} is built from {last_path_item_parent_descriptions}. However, the "
-            f"given input does not match to a common item that is available to those parents:\n"
-            f"{textwrap.indent(pformat_big_objects(**parent_to_available_items), prefix='  ')}"
+            f"given input does not match to a common item that is available to those parents:\n\n"
+            f"{indent_log_line(mf_pformat(parent_to_available_items))}\n\n"
+            f"For time dimension inputs, please specify a time grain as ambiguous resolution will only allows "
+            f"resolution when the parents have the same defined time gain."
         )
 
     @override

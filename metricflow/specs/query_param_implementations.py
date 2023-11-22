@@ -59,7 +59,7 @@ class TimeDimensionParameter(ProtocolHint[TimeDimensionQueryParameter]):
 
         return ResolverInputForGroupBy(
             input_obj=self,
-            naming_scheme=ObjectBuilderNamingScheme(),
+            input_obj_naming_scheme=ObjectBuilderNamingScheme(),
             spec_pattern=EntityLinkPattern(
                 EntityLinkPatternParameterSet(
                     fields_to_compare=tuple(fields_to_compare),
@@ -91,7 +91,7 @@ class DimensionOrEntityParameter(ProtocolHint[DimensionOrEntityQueryParameter]):
 
         return ResolverInputForGroupBy(
             input_obj=self,
-            naming_scheme=ObjectBuilderNamingScheme(),
+            input_obj_naming_scheme=ObjectBuilderNamingScheme(),
             spec_pattern=EntityLinkPattern(
                 EntityLinkPatternParameterSet(
                     fields_to_compare=(ParameterSetField.ELEMENT_NAME, ParameterSetField.ENTITY_LINKS),

@@ -272,8 +272,8 @@ def test_case(
     query_result = engine.query(
         MetricFlowQueryRequest.create_with_random_request_id(
             metric_names=case.metrics,
-            group_by_names=case.group_bys,
-            group_by=tuple(group_by),
+            group_by_names=case.group_bys if len(case.group_bys) > 0 else None,
+            group_by=tuple(group_by) if len(group_by) > 0 else None,
             limit=case.limit,
             time_constraint_start=parser.parse(case.time_constraint[0]) if case.time_constraint else None,
             time_constraint_end=parser.parse(case.time_constraint[1]) if case.time_constraint else None,

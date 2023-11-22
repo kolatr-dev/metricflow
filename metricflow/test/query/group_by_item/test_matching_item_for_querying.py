@@ -8,6 +8,7 @@ from _pytest.fixtures import FixtureRequest
 from dbt_semantic_interfaces.enum_extension import assert_values_exhausted
 from dbt_semantic_interfaces.naming.keywords import METRIC_TIME_ELEMENT_NAME
 
+from metricflow.collection_helpers.pretty_print import mf_pformat
 from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
 from metricflow.naming.naming_scheme import QueryItemNamingScheme
 from metricflow.naming.object_builder_scheme import ObjectBuilderNamingScheme
@@ -15,7 +16,6 @@ from metricflow.query.group_by_item.group_by_item_resolver import GroupByItemRes
 from metricflow.query.group_by_item.resolution_dag import GroupByItemResolutionDag
 from metricflow.test.fixtures.setup_fixtures import MetricFlowTestSessionState
 from metricflow.test.query.group_by_item.conftest import AmbiguousResolutionQueryId
-from metricflow.test.query.group_by_item.result_to_snapshot_text import group_by_item_resolution_to_snapshot_text
 from metricflow.test.snapshot_utils import assert_object_snapshot_equal
 from metricflow.test.time.metric_time_dimension import MTD_SPEC_DAY, MTD_SPEC_MONTH
 
@@ -40,7 +40,6 @@ def test_ambiguous_metric_time_in_query(  # noqa: D
 
     result = group_by_item_resolver.resolve_matching_item_for_querying(
         spec_pattern=spec_pattern,
-        resolution_node=resolution_dag.sink_node,
     )
 
     if case_id is AmbiguousResolutionQueryId.NO_METRICS:
@@ -77,12 +76,37 @@ def test_unavailable_group_by_item_in_derived_metric_parent(  # noqa: D
 
     result = group_by_item_resolver.resolve_matching_item_for_querying(
         spec_pattern=spec_pattern,
-        resolution_node=resolution_dag.sink_node,
     )
 
     assert_object_snapshot_equal(
         request=request,
         mf_test_session_state=mf_test_session_state,
         obj_id="result",
-        obj=group_by_item_resolution_to_snapshot_text(result, naming_scheme),
+        obj=mf_pformat(result),
+    )
+
+
+def test_invalid_group_by_item(  # noqa: D
+    request: FixtureRequest,
+    mf_test_session_state: MetricFlowTestSessionState,
+    naming_scheme: QueryItemNamingScheme,
+    ambiguous_resolution_manifest_lookup: SemanticManifestLookup,
+    resolution_dags: Dict[AmbiguousResolutionQueryId, GroupByItemResolutionDag],
+) -> None:
+    resolution_dag = resolution_dags[AmbiguousResolutionQueryId.SIMPLE_METRIC]
+    group_by_item_resolver = GroupByItemResolver(
+        manifest_lookup=ambiguous_resolution_manifest_lookup,
+        resolution_dag=resolution_dag,
+    )
+    input_str = "Dimension('daily_measure_entity__creation')"
+
+    result = group_by_item_resolver.resolve_matching_item_for_querying(
+        spec_pattern=naming_scheme.spec_pattern(input_str),
+    )
+
+    assert_object_snapshot_equal(
+        request=request,
+        mf_test_session_state=mf_test_session_state,
+        obj_id="result",
+        obj=mf_pformat(result),
     )

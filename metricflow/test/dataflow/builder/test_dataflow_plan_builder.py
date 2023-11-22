@@ -4,6 +4,7 @@ import logging
 
 import pytest
 from _pytest.fixtures import FixtureRequest
+from dbt_semantic_interfaces.naming.keywords import METRIC_TIME_ELEMENT_NAME
 from dbt_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 
 from metricflow.dataflow.builder.dataflow_plan_builder import DataflowPlanBuilder
@@ -604,16 +605,15 @@ def test_distinct_values_plan_with_join(  # noqa: D
 def test_measure_constraint_plan(
     request: FixtureRequest,
     mf_test_session_state: MetricFlowTestSessionState,
+    query_parser: MetricFlowQueryParser,
     dataflow_plan_builder: DataflowPlanBuilder,
 ) -> None:
     """Tests a plan for querying a metric with a constraint on one or more of its input measures."""
-    dataflow_plan = dataflow_plan_builder.build_plan(
-        MetricFlowQuerySpec(
-            metric_specs=(MetricSpec(element_name="lux_booking_value_rate_expr"),),
-            dimension_specs=(),
-            time_dimension_specs=(MTD_SPEC_DAY,),
-        ),
+    query_spec = query_parser.parse_and_validate_query(
+        metric_names=("lux_booking_value_rate_expr",),
+        group_by_names=(METRIC_TIME_ELEMENT_NAME,),
     )
+    dataflow_plan = dataflow_plan_builder.build_plan(query_spec)
 
     assert_plan_snapshot_text_equal(
         request=request,
@@ -633,16 +633,15 @@ def test_measure_constraint_plan(
 def test_measure_constraint_with_reused_measure_plan(
     request: FixtureRequest,
     mf_test_session_state: MetricFlowTestSessionState,
+    query_parser: MetricFlowQueryParser,
     dataflow_plan_builder: DataflowPlanBuilder,
 ) -> None:
     """Tests a plan for querying a metric with a constraint on one or more of its input measures."""
-    dataflow_plan = dataflow_plan_builder.build_plan(
-        MetricFlowQuerySpec(
-            metric_specs=(MetricSpec(element_name="instant_booking_value_ratio"),),
-            dimension_specs=(),
-            time_dimension_specs=(MTD_SPEC_DAY,),
-        ),
+    query_spec = query_parser.parse_and_validate_query(
+        metric_names=("instant_booking_value_ratio",),
+        group_by_names=(METRIC_TIME_ELEMENT_NAME,),
     )
+    dataflow_plan = dataflow_plan_builder.build_plan(query_spec)
 
     assert_plan_snapshot_text_equal(
         request=request,

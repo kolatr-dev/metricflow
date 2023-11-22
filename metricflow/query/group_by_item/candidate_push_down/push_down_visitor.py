@@ -26,9 +26,9 @@ from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssueSet,
     MetricFlowQueryResolutionPath,
 )
+from metricflow.query.issues.no_common import NoCommonItemsInParents
 from metricflow.query.issues.no_matching_at_root import NoMatchingGroupByItemsAtRoot
 from metricflow.query.issues.no_matching_none_date_part import NoCandidatesWithNoneDatePartIssue
-from metricflow.query.issues.unavailable_group_by_item import NoCommonItemsInParents
 from metricflow.specs.patterns.base_time_grain import BaseTimeGrainPattern
 from metricflow.specs.patterns.none_date_part import NoneDatePartPattern
 from metricflow.specs.patterns.spec_pattern import SpecPattern
@@ -238,8 +238,19 @@ class _PushDownGroupByItemCandidatesVisitor(GroupByItemResolutionNodeVisitor[Pus
                 assert_values_exhausted(metric.type)
 
             candidate_specs: Sequence[LinkableInstanceSpec] = merged_result_from_parents.candidate_set.specs
-            matched_specs = candidate_specs
             issue_sets_to_merge = [merged_result_from_parents.issue_set]
+
+            if len(patterns_to_apply) == 0:
+                return PushDownResult(
+                    candidate_set=GroupByItemCandidateSet(
+                        specs=tuple(candidate_specs),
+                        measure_paths=merged_result_from_parents.candidate_set.measure_paths,
+                        path_from_leaf_node=current_traversal_path,
+                    ),
+                    issue_set=MetricFlowQueryResolutionIssueSet.merge_iterable(issue_sets_to_merge),
+                )
+
+            matched_specs = candidate_specs
             for pattern_to_apply in patterns_to_apply:
                 matched_specs = pattern_to_apply.match(matched_specs)
 

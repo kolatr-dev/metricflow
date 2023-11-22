@@ -52,7 +52,10 @@ from metricflow.filters.time_constraint import TimeRangeConstraint
 from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
 from metricflow.plan_conversion.column_resolver import DunderColumnAssociationResolver
 from metricflow.plan_conversion.node_processor import PreJoinNodeProcessor
-from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import ResolvedSpecLookup
+from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import (
+    FilterSpecResolutionLookUp,
+    WhereFilterLocation,
+)
 from metricflow.specs.column_assoc import ColumnAssociationResolver
 from metricflow.specs.specs import (
     CumulativeMeasureDescription,
@@ -153,17 +156,25 @@ class DataflowPlanBuilder:
                     f"The metric specs in the query spec should not contain any metric modifiers. Got: {metric_spec}"
                 )
 
-        # TODO: Remove me.
-        assert query_spec.resolved_spec_lookup is not None
+        if query_spec.filter_spec_resolution_lookup is None:
+            logger.info(
+                "query_spec.filter_spec_resolution_lookup was not passed in, so using an empty one. This is done to "
+                "aid test migration, but it should be populated in the normal query flow."
+            )
+            resolved_spec_lookup = FilterSpecResolutionLookUp.empty_instance()
+        else:
+            resolved_spec_lookup = query_spec.filter_spec_resolution_lookup
+
         filter_spec_factory = WhereSpecFactory(
-            column_association_resolver=self._column_association_resolver,
-            resolved_spec_lookup=query_spec.resolved_spec_lookup or ResolvedSpecLookup.empty_instance(),
+            column_association_resolver=self._column_association_resolver, spec_resolution_lookup=resolved_spec_lookup
         )
 
         filter_specs = tuple(
             filter_spec_factory.create_from_where_filter_intersection(
-                metric_references=tuple(metric_spec.reference for metric_spec in query_spec.metric_specs),
-                where_filter_intersection=query_spec.filter_intersection,
+                filter_location=WhereFilterLocation.for_query(
+                    tuple(metric_spec.reference for metric_spec in query_spec.metric_specs)
+                ),
+                filter_intersection=query_spec.filter_intersection,
             )
         )
 
@@ -263,8 +274,8 @@ class DataflowPlanBuilder:
 
         # This is the filter that's defined for the metric in the configs.
         metric_definition_filter_specs = filter_spec_factory.create_from_where_filter_intersection(
-            metric_references=(metric_spec.reference,),
-            where_filter_intersection=metric.filter,
+            filter_location=WhereFilterLocation.for_metric(metric_spec.reference),
+            filter_intersection=metric.filter,
         )
         for metric_input_spec in metric_input_specs:
             filter_specs: List[WhereFilterSpec] = []
@@ -282,8 +293,8 @@ class DataflowPlanBuilder:
                         element_name=metric_input_spec.element_name,
                         filter_specs=tuple(filter_specs),
                         alias=metric_input_spec.alias,
-                        offset_window=None,
-                        offset_to_grain=None,
+                        offset_window=metric_input_spec.offset_window,
+                        offset_to_grain=metric_input_spec.offset_to_grain,
                     ),
                     queried_linkable_specs=queried_linkable_specs,
                     filter_spec_factory=filter_spec_factory,
@@ -404,12 +415,15 @@ class DataflowPlanBuilder:
         if query_spec.filter_intersection is not None:
             filter_spec_factory = WhereSpecFactory(
                 column_association_resolver=self._column_association_resolver,
-                resolved_spec_lookup=query_spec.resolved_spec_lookup or ResolvedSpecLookup.empty_instance(),
+                spec_resolution_lookup=query_spec.filter_spec_resolution_lookup
+                or FilterSpecResolutionLookUp.empty_instance(),
             )
 
             filter_specs = filter_spec_factory.create_from_where_filter_intersection(
-                metric_references=tuple(metric_spec.reference for metric_spec in query_spec.metric_specs),
-                where_filter_intersection=query_spec.filter_intersection,
+                filter_location=WhereFilterLocation.for_query(
+                    tuple(metric_spec.reference for metric_spec in query_spec.metric_specs)
+                ),
+                filter_intersection=query_spec.filter_intersection,
             )
 
             where_constraint_node = WhereConstraintNode(
@@ -794,13 +808,13 @@ class DataflowPlanBuilder:
         filter_specs: List[WhereFilterSpec] = []
         filter_specs.extend(
             filter_spec_factory.create_from_where_filter_intersection(
-                metric_references=(metric_reference,),
-                where_filter_intersection=input_measure.filter,
+                filter_location=WhereFilterLocation.for_metric(metric_reference),
+                filter_intersection=input_measure.filter,
             )
         )
         filter_specs.extend(
             filter_spec_factory.create_from_where_filter_intersection(
-                metric_references=(metric_reference,), where_filter_intersection=metric.filter
+                filter_location=WhereFilterLocation.for_metric(metric_reference), filter_intersection=metric.filter
             )
         )
         filter_specs.extend(descendent_filter_specs)
@@ -828,8 +842,8 @@ class DataflowPlanBuilder:
 
         for input_metric in metric.input_metrics:
             filter_specs = filter_spec_factory.create_from_where_filter_intersection(
-                metric_references=(input_metric.as_reference,),
-                where_filter_intersection=input_metric.filter,
+                filter_location=WhereFilterLocation.for_metric(input_metric.as_reference),
+                filter_intersection=input_metric.filter,
             )
 
             spec = MetricSpec(

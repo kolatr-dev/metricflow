@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple
 
 from typing_extensions import override
 
-from metricflow.collection_helpers.pretty_print import mf_pformat
-from metricflow.naming.naming_scheme import QueryItemNamingScheme
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryIssueType,
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
+from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
 from metricflow.specs.specs import LinkableInstanceSpec
 
 
@@ -34,22 +33,11 @@ class NoMatchingGroupByItemsAtRoot(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, naming_scheme: Optional[QueryItemNamingScheme]) -> str:
-        # TODO: Improve error.
-        description_prefix = (
+    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
+        return (
             f"The given input does not match any of the available group by items for "
-            f"{self.query_resolution_path.last_item.ui_description}. Available items:\n"
+            f"{self.query_resolution_path.last_item.ui_description}."
         )
-        available_items: List[str] = []
-        for spec in self.candidate_specs:
-            if naming_scheme is not None:
-                input_str = naming_scheme.input_str(spec)
-                if input_str is not None:
-                    available_items.append(input_str)
-            else:
-                available_items.append(repr(spec))
-
-        return description_prefix + mf_pformat(available_items)
 
     @override
     def with_path_prefix(self, path_prefix_node: GroupByItemResolutionNode) -> NoMatchingGroupByItemsAtRoot:

@@ -8,7 +8,7 @@ from typing_extensions import override
 from metricflow.collection_helpers.merger import Mergeable
 from metricflow.collection_helpers.pretty_print import mf_pformat
 from metricflow.query.group_by_item.resolution_dag import GroupByItemResolutionDag
-from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import ResolvedSpecLookup
+from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import FilterSpecResolutionLookUp
 from metricflow.query.issues.issues_base import MetricFlowQueryResolutionIssueSet
 from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
 from metricflow.specs.specs import MetricFlowQuerySpec
@@ -50,7 +50,7 @@ class MetricFlowQueryResolution:
     # Can be None if there were errors.
     query_spec: Optional[MetricFlowQuerySpec]
     resolution_dag: Optional[GroupByItemResolutionDag]
-    where_filter_resolved_spec_lookup: ResolvedSpecLookup
+    where_filter_resolved_spec_lookup: FilterSpecResolutionLookUp
     input_to_issue_set: InputToIssueSetMapping
 
     @property

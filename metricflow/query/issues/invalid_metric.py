@@ -6,13 +6,13 @@ from typing import Optional, Sequence, Tuple
 from dbt_semantic_interfaces.references import MetricReference
 from typing_extensions import override
 
-from metricflow.naming.naming_scheme import QueryItemNamingScheme
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryIssueType,
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
+from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
 
 
 @dataclass(frozen=True)
@@ -37,9 +37,9 @@ class InvalidMetricIssue(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, naming_scheme: Optional[QueryItemNamingScheme]) -> str:
+    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
         # TODO: Provide suggestions for alternative metrics.
-        return f"{self.invalid_metric_reference} does not match any of the known metrics."
+        return f"{repr(self.invalid_metric_reference.element_name)} does not match any of the known metrics."
 
     @override
     def with_path_prefix(self, path_prefix_node: GroupByItemResolutionNode) -> InvalidMetricIssue:

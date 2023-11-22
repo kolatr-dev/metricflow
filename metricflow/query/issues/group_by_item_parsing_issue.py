@@ -5,13 +5,13 @@ from typing import Optional
 
 from typing_extensions import override
 
-from metricflow.naming.naming_scheme import QueryItemNamingScheme
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryIssueType,
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
+from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
 
 
 @dataclass(frozen=True)
@@ -28,7 +28,7 @@ class GroupByItemNameParsingIssue(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, naming_scheme: Optional[QueryItemNamingScheme]) -> str:
+    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
         return f"The group-by-item {repr(self.input_str)} does not match any of the known formats."
 
     @override

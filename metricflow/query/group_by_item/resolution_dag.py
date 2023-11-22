@@ -15,13 +15,13 @@ class GroupByItemResolutionDagId(DagId):
         return GroupByItemResolutionDagId(IdGeneratorRegistry.for_class(cls).create_id(GROUP_BY_ITEM_RESOLUTION_DAG))
 
 
-SinkNodeType = Union[QueryGroupByItemResolutionNode, MetricGroupByItemResolutionNode]
+ResolutionDagSinkNode = Union[QueryGroupByItemResolutionNode, MetricGroupByItemResolutionNode]
 
 
 class GroupByItemResolutionDag(MetricFlowDag[GroupByItemResolutionNode]):
     def __init__(
         self,
-        sink_node: SinkNodeType,
+        sink_node: ResolutionDagSinkNode,
         dag_id: Optional[GroupByItemResolutionDagId] = None,
     ) -> None:  # noqa: D
         super().__init__(
@@ -31,5 +31,5 @@ class GroupByItemResolutionDag(MetricFlowDag[GroupByItemResolutionNode]):
         self._sink_node = sink_node
 
     @property
-    def sink_node(self) -> SinkNodeType:  # noqa: D
+    def sink_node(self) -> ResolutionDagSinkNode:  # noqa: D
         return self._sink_node

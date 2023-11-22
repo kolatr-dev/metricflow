@@ -32,7 +32,7 @@ def top_fuzzy_matches(
 
     Return scores from -1 -> 0 inclusive.
     """
-    normalized_scored_items = []
+    scored_items = []
 
     # Rank choices by edit distance score.
     # extract() returns a tuple like (name, score)
@@ -53,6 +53,6 @@ def top_fuzzy_matches(
         value = fuzz_tuple[0]
         score = fuzz_tuple[1]
 
-        normalized_scored_items.append(ScoredItem(item_str=value, score=score))
+        scored_items.append(ScoredItem(item_str=value, score=score))
 
-    return normalized_scored_items
+    return scored_items

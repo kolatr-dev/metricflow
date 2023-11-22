@@ -11,8 +11,8 @@ from metricflow.query.group_by_item.group_by_item_resolver import GroupByItemRes
 from metricflow.query.group_by_item.resolution_dag import GroupByItemResolutionDag
 from metricflow.query.group_by_item.resolution_nodes.query_resolution_node import QueryGroupByItemResolutionNode
 from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import (
-    ResolvedSpecLookup,
-    WhereFilterLinkableSpecResolver,
+    FilterSpecResolutionLookUp,
+    WhereFilterSpecResolver,
 )
 from metricflow.query.issues.invalid_limit import InvalidLimitIssue
 from metricflow.query.issues.invalid_metric import InvalidMetricIssue
@@ -62,7 +62,6 @@ class MetricFlowQueryResolver:
 
         return group_by_item_resolver.resolve_matching_item_for_querying(
             spec_pattern=group_by_item_input.spec_pattern,
-            resolution_node=resolution_dag.sink_node,
         )
 
     def _resolve_metric_inputs(
@@ -146,8 +145,8 @@ class MetricFlowQueryResolver:
     def _resolve_where(
         self,
         resolution_dag: GroupByItemResolutionDag,
-    ) -> ResolvedSpecLookup:
-        where_filter_linkable_spec_resolver = WhereFilterLinkableSpecResolver(
+    ) -> FilterSpecResolutionLookUp:
+        where_filter_linkable_spec_resolver = WhereFilterSpecResolver(
             manifest_lookup=self._manifest_lookup,
             resolution_dag=resolution_dag,
         )
@@ -261,7 +260,7 @@ class MetricFlowQueryResolver:
             return MetricFlowQueryResolution(
                 query_spec=None,
                 resolution_dag=None,
-                where_filter_resolved_spec_lookup=ResolvedSpecLookup.empty_instance(),
+                where_filter_resolved_spec_lookup=FilterSpecResolutionLookUp.empty_instance(),
                 input_to_issue_set=InputToIssueSetMapping(tuple(input_to_issue_set_mapping_items)),
             )
 
@@ -344,7 +343,7 @@ class MetricFlowQueryResolver:
                 order_by_specs=tuple(order_by_specs),
                 limit=limit_input.limit,
                 filter_intersection=filter_input.where_filter_intersection,
-                resolved_spec_lookup=resolved_spec_lookup,
+                filter_spec_resolution_lookup=resolved_spec_lookup,
             ),
             resolution_dag=resolution_dag,
             where_filter_resolved_spec_lookup=resolved_spec_lookup,

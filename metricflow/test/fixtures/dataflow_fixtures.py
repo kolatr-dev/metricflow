@@ -98,6 +98,17 @@ def scd_dataflow_plan_builder(  # noqa: D
     )
 
 
+@pytest.fixture
+def scd_query_parser(
+    scd_column_association_resolver: ColumnAssociationResolver,
+    scd_semantic_manifest_lookup: SemanticManifestLookup,
+) -> MetricFlowQueryParser:
+    return MetricFlowQueryParser(
+        column_association_resolver=scd_column_association_resolver,
+        model=scd_semantic_manifest_lookup,
+    )
+
+
 @pytest.fixture(scope="session")
 def time_spine_source(  # noqa: D
     sql_client: SqlClient, mf_test_session_state: MetricFlowTestSessionState  # noqa: F811

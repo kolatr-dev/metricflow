@@ -4,13 +4,19 @@ import logging
 from typing import List, Optional, Sequence
 
 import jinja2
-from dbt_semantic_interfaces.protocols import WhereFilterIntersection
-from dbt_semantic_interfaces.references import MetricReference
+from dbt_semantic_interfaces.implementations.filters.where_filter import PydanticWhereFilterIntersection
+from dbt_semantic_interfaces.protocols import WhereFilter, WhereFilterIntersection
 
-from metricflow.filters.filter_renderer import WhereFilterRenderer
-from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import ResolvedSpecLookup
+from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import (
+    FilterSpecResolutionLookUp,
+    WhereFilterLocation,
+)
 from metricflow.specs.column_assoc import ColumnAssociationResolver
+from metricflow.specs.rendered_spec_tracker import RenderedSpecTracker
 from metricflow.specs.specs import LinkableSpecSet, WhereFilterSpec
+from metricflow.specs.where_filter_dimension import WhereFilterDimensionFactory
+from metricflow.specs.where_filter_entity import WhereFilterEntityFactory
+from metricflow.specs.where_filter_time_dimension import WhereFilterTimeDimensionFactory
 from metricflow.sql.sql_bind_parameters import SqlBindParameters
 
 logger = logging.getLogger(__name__)
@@ -26,36 +32,59 @@ class WhereSpecFactory:
     def __init__(  # noqa: D
         self,
         column_association_resolver: ColumnAssociationResolver,
-        resolved_spec_lookup: ResolvedSpecLookup,
+        spec_resolution_lookup: FilterSpecResolutionLookUp,
     ) -> None:
         self._column_association_resolver = column_association_resolver
-        self._resolved_spec_lookup = resolved_spec_lookup
+        self._spec_resolution_lookup = spec_resolution_lookup
+
+    def create_from_where_filter(  # noqa: D
+        self,
+        filter_location: WhereFilterLocation,
+        where_filter: WhereFilter,
+    ) -> WhereFilterSpec:
+        return self.create_from_where_filter_intersection(
+            filter_location=filter_location,
+            filter_intersection=PydanticWhereFilterIntersection(where_filters=[where_filter]),
+        )[0]
 
     def create_from_where_filter_intersection(  # noqa: D
         self,
-        metric_references: Sequence[MetricReference],
-        where_filter_intersection: Optional[WhereFilterIntersection],
+        filter_location: WhereFilterLocation,
+        filter_intersection: Optional[WhereFilterIntersection],
     ) -> Sequence[WhereFilterSpec]:
-        if where_filter_intersection is None:
+        if filter_intersection is None:
             return ()
 
         filter_specs: List[WhereFilterSpec] = []
 
-        for where_filter in where_filter_intersection.where_filters:
-            renderer = WhereFilterRenderer(
+        for where_filter in filter_intersection.where_filters:
+            rendered_spec_tracker = RenderedSpecTracker()
+            dimension_factory = WhereFilterDimensionFactory(
                 column_association_resolver=self._column_association_resolver,
-                resolved_spec_lookup=self._resolved_spec_lookup,
-                metric_references=metric_references,
+                spec_resolution_lookup=self._spec_resolution_lookup,
+                where_filter_location=filter_location,
+                rendered_spec_tracker=rendered_spec_tracker,
             )
-
+            time_dimension_factory = WhereFilterTimeDimensionFactory(
+                column_association_resolver=self._column_association_resolver,
+                spec_resolution_lookup=self._spec_resolution_lookup,
+                where_filter_location=filter_location,
+                rendered_spec_tracker=rendered_spec_tracker,
+            )
+            entity_factory = WhereFilterEntityFactory(
+                column_association_resolver=self._column_association_resolver,
+                spec_resolution_lookup=self._spec_resolution_lookup,
+                where_filter_location=filter_location,
+                rendered_spec_tracker=rendered_spec_tracker,
+            )
             try:
                 # If there was an error with the template, it should have been caught while resolving the specs for
                 # the filters during query resolution.
                 where_sql = jinja2.Template(where_filter.where_sql_template, undefined=jinja2.StrictUndefined).render(
                     {
-                        "Dimension": renderer.dimension_call_jinja_function,
-                        "TimeDimension": renderer.time_dimension_jinja_function,
-                        "Entity": renderer.entity_jinja_function,
+                        "Dimension": dimension_factory.create,
+                        "TimeDimension": time_dimension_factory.create,
+                        "Entity": entity_factory.create,
                     }
                 )
             except (jinja2.exceptions.UndefinedError, jinja2.exceptions.TemplateSyntaxError) as e:
@@ -66,7 +95,7 @@ class WhereSpecFactory:
                 WhereFilterSpec(
                     where_sql=where_sql,
                     bind_parameters=SqlBindParameters(),
-                    linkable_spec_set=LinkableSpecSet.from_specs(renderer.rendered_specs),
+                    linkable_spec_set=LinkableSpecSet.from_specs(rendered_spec_tracker.rendered_specs),
                 )
             )
 

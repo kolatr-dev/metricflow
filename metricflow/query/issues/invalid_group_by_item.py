@@ -5,14 +5,13 @@ from typing import Optional, Sequence, Tuple
 
 from typing_extensions import override
 
-from metricflow.naming.naming_scheme import QueryItemNamingScheme
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryIssueType,
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import ResolverInputForGroupBy
+from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput, ResolverInputForGroupBy
 from metricflow.specs.specs import LinkableInstanceSpec
 
 
@@ -39,7 +38,7 @@ class InvalidGroupByItemIssue(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, naming_scheme: Optional[QueryItemNamingScheme]) -> str:
+    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
         # TODO: Improve message.
         return f"{self.group_by_item_input} is not a valid group by item for the query."
 

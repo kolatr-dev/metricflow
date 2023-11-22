@@ -45,7 +45,7 @@ from metricflow.sql.sql_plan import SqlJoinType
 from metricflow.visitor import VisitorOutputT
 
 if TYPE_CHECKING:
-    from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import ResolvedSpecLookup
+    from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import FilterSpecResolutionLookUp
 
 
 def hash_items(items: Sequence[SqlColumnType]) -> str:
@@ -720,7 +720,7 @@ class MetricFlowQuerySpec(SerializableDataclass):
     time_range_constraint: Optional[TimeRangeConstraint] = None
     limit: Optional[int] = None
     filter_intersection: Optional[WhereFilterIntersection] = None
-    resolved_spec_lookup: Optional[ResolvedSpecLookup] = None
+    filter_spec_resolution_lookup: Optional[FilterSpecResolutionLookUp] = None
 
     @property
     def linkable_specs(self) -> LinkableSpecSet:  # noqa: D
@@ -741,7 +741,7 @@ class MetricFlowQuerySpec(SerializableDataclass):
             time_range_constraint=time_range_constraint,
             limit=self.limit,
             filter_intersection=self.filter_intersection,
-            resolved_spec_lookup=self.resolved_spec_lookup,
+            filter_spec_resolution_lookup=self.filter_spec_resolution_lookup,
         )
 
 
@@ -901,7 +901,7 @@ class WhereFilterSpec(Mergeable, SerializableDataclass):
         return WhereFilterSpec(
             where_sql=f"({self.where_sql}) AND ({other.where_sql})",
             bind_parameters=self.bind_parameters.combine(other.bind_parameters),
-            linkable_spec_set=self.linkable_spec_set.merge(other.linkable_spec_set),
+            linkable_spec_set=self.linkable_spec_set.merge(other.linkable_spec_set).dedupe(),
         )
 
     @classmethod
