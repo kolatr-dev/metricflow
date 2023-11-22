@@ -1,0 +1,69 @@
+WhereFilterResolvedSpecLookup(
+  call_parameter_set_to_spec_mappings=(
+    CallParameterSetToSpecMapping(
+      applicability_key=ResolvedSpecApplicabilityKey(
+        metric_references=(MetricReference(element_name='derived_metric_with_different_parent_time_grains'),),
+        call_parameter_set=
+          TimeDimensionCallParameterSet(time_dimension_reference=TimeDimensionReference(element_name='metric_time')),
+      ),
+      issue_set=MetricFlowQueryResolutionIssueSet(
+        issues=(
+          NoCommonItemsInParents(
+            issue_type=ERROR,
+            query_resolution_path=MetricFlowQueryResolutionPath(
+              resolution_path_nodes=
+                (QueryGroupByItemResolutionNode(node_id=qr_0), MetricGroupByItemResolutionNode(node_id=mtr_2)),
+            ),
+            parent_candidate_sets=(
+              GroupByItemCandidateSet(
+                specs=(TimeDimensionSpec(element_name='metric_time', time_granularity=DAY),),
+                measure_paths=(
+                  MetricFlowQueryResolutionPath(
+                    resolution_path_nodes=(
+                      QueryGroupByItemResolutionNode(node_id=qr_0),
+                      MetricGroupByItemResolutionNode(node_id=mtr_2),
+                      MetricGroupByItemResolutionNode(node_id=mtr_0),
+                      MeasureGroupByItemResolutionNode(node_id=msr_0),
+                    ),
+                  ),
+                ),
+                path_from_leaf_node=MetricFlowQueryResolutionPath(
+                  resolution_path_nodes=(
+                    QueryGroupByItemResolutionNode(node_id=qr_0),
+                    MetricGroupByItemResolutionNode(node_id=mtr_2),
+                    MetricGroupByItemResolutionNode(node_id=mtr_0),
+                  ),
+                ),
+              ),
+              GroupByItemCandidateSet(
+                specs=(TimeDimensionSpec(element_name='metric_time', time_granularity=MONTH),),
+                measure_paths=(
+                  MetricFlowQueryResolutionPath(
+                    resolution_path_nodes=(
+                      QueryGroupByItemResolutionNode(node_id=qr_0),
+                      MetricGroupByItemResolutionNode(node_id=mtr_2),
+                      MetricGroupByItemResolutionNode(node_id=mtr_1),
+                      MeasureGroupByItemResolutionNode(node_id=msr_1),
+                    ),
+                  ),
+                ),
+                path_from_leaf_node=MetricFlowQueryResolutionPath(
+                  resolution_path_nodes=(
+                    QueryGroupByItemResolutionNode(node_id=qr_0),
+                    MetricGroupByItemResolutionNode(node_id=mtr_2),
+                    MetricGroupByItemResolutionNode(node_id=mtr_1),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      resolution_path=MetricFlowQueryResolutionPath(
+        resolution_path_nodes=
+          (QueryGroupByItemResolutionNode(node_id=qr_0), MetricGroupByItemResolutionNode(node_id=mtr_2)),
+      ),
+    ),
+  ),
+  other_issue_set=MetricFlowQueryResolutionIssueSet(),
+)

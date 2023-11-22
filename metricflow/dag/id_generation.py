@@ -56,6 +56,12 @@ EXEC_PLAN_PREFIX = "ep"
 
 MF_DAG = "mfd"
 
+GROUP_BY_ITEM_RESOLUTION_DAG = "rd"
+GROUP_BY_ITEM_RESOLUTION_AT_QUERY = "rd_q"
+GROUP_BY_ITEM_RESOLUTION_AT_METRIC = "rd_met"
+GROUP_BY_ITEM_RESOLUTION_AT_MEASURE = "rd_mea"
+
+
 logger = logging.getLogger(__name__)
 
 

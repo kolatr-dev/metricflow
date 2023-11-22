@@ -1,0 +1,34 @@
+<GroupByItemResolutionDag>
+    <QueryGroupByItemResolutionNode>
+        <!-- description = Output the valid group by items in the metric query. -->
+        <!-- node_id = qr_3 -->
+        <!-- metrics_in_query =                                                                 -->
+        <!--   ["MetricReference(element_name='derived_metric_with_same_parent_time_grains')"]  -->
+        <MetricGroupByItemResolutionNode>
+            <!-- description = Output the valid group by items for this metric. -->
+            <!-- node_id = mtr_7 -->
+            <!-- metric_reference =                                                             -->
+            <!--   MetricReference(element_name='derived_metric_with_same_parent_time_grains')  -->
+            <MetricGroupByItemResolutionNode>
+                <!-- description = Output the valid group by items for this metric. -->
+                <!-- node_id = mtr_5 -->
+                <!-- metric_reference = MetricReference(element_name='daily_metric_0') -->
+                <MeasureGroupByItemResolutionNode>
+                    <!-- description = Output the group by items possible for a measure. -->
+                    <!-- node_id = msr_5 -->
+                    <!-- measure_reference = MeasureReference(element_name='daily_measure_0') -->
+                </MeasureGroupByItemResolutionNode>
+            </MetricGroupByItemResolutionNode>
+            <MetricGroupByItemResolutionNode>
+                <!-- description = Output the valid group by items for this metric. -->
+                <!-- node_id = mtr_6 -->
+                <!-- metric_reference = MetricReference(element_name='daily_metric_1') -->
+                <MeasureGroupByItemResolutionNode>
+                    <!-- description = Output the group by items possible for a measure. -->
+                    <!-- node_id = msr_6 -->
+                    <!-- measure_reference = MeasureReference(element_name='daily_measure_1') -->
+                </MeasureGroupByItemResolutionNode>
+            </MetricGroupByItemResolutionNode>
+        </MetricGroupByItemResolutionNode>
+    </QueryGroupByItemResolutionNode>
+</GroupByItemResolutionDag>

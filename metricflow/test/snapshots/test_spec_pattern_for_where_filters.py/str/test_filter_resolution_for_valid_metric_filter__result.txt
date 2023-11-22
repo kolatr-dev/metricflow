@@ -1,0 +1,18 @@
+WhereFilterResolvedSpecLookup(
+  call_parameter_set_to_spec_mappings=(
+    CallParameterSetToSpecMapping(
+      applicability_key=ResolvedSpecApplicabilityKey(
+        metric_references=(MetricReference(element_name='derived_metric_with_same_parent_time_grains'),),
+        call_parameter_set=
+          TimeDimensionCallParameterSet(time_dimension_reference=TimeDimensionReference(element_name='metric_time')),
+      ),
+      issue_set=MetricFlowQueryResolutionIssueSet(),
+      resolution_path=MetricFlowQueryResolutionPath(
+        resolution_path_nodes=
+          (QueryGroupByItemResolutionNode(node_id=qr_0), MetricGroupByItemResolutionNode(node_id=mtr_2)),
+      ),
+      resolved_spec=TimeDimensionSpec(element_name='metric_time', time_granularity=DAY),
+    ),
+  ),
+  other_issue_set=MetricFlowQueryResolutionIssueSet(),
+)

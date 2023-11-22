@@ -2,18 +2,24 @@ from __future__ import annotations
 
 import datetime
 import logging
+import textwrap
 from typing import List, Optional, Sequence, Tuple
 
+import pandas as pd
 from dbt_semantic_interfaces.implementations.filters.where_filter import (
+    PydanticWhereFilter,
     PydanticWhereFilterIntersection,
 )
 from dbt_semantic_interfaces.pretty_print import pformat_big_objects
 from dbt_semantic_interfaces.protocols import SavedQuery
 from dbt_semantic_interfaces.protocols.where_filter import WhereFilter
+from dbt_semantic_interfaces.type_enums import TimeGranularity
 
-from metricflow.dataflow.builder.node_data_set import DataflowPlanNodeOutputDataSetResolver
-from metricflow.dataflow.dataflow_plan import ReadSqlSourceNode
+from metricflow.assert_one_arg import assert_at_most_one_arg_set
+from metricflow.collection_helpers.pretty_print import mf_pformat
 from metricflow.filters.merge_where import merge_to_single_where_filter
+from metricflow.filters.time_constraint import TimeRangeConstraint
+from metricflow.formatting import indent_log_line
 from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
 from metricflow.naming.dunder_scheme import DunderNamingScheme
 from metricflow.naming.object_builder_scheme import ObjectBuilderNamingScheme
@@ -23,14 +29,40 @@ from metricflow.protocols.query_parameter import (
     OrderByQueryParameter,
     SavedQueryParameter,
 )
+from metricflow.query.issues.group_by_item_parsing_issue import GroupByItemNameParsingIssue
+from metricflow.query.issues.issues_base import MetricFlowQueryResolutionIssueSet
 from metricflow.query.query_exceptions import InvalidQueryException
-from metricflow.query.resolver_inputs.query_resolver_inputs import ResolverInputForMetric
-from metricflow.query.resolver_inputs.string_inputs import StringResolverInputForMetric
+from metricflow.query.query_resolution import InputToIssueSetMapping, InputToIssueSetMappingItem
+from metricflow.query.query_resolver import MetricFlowQueryResolver
+from metricflow.query.resolver_inputs.query_resolver_inputs import (
+    MetricFlowQueryResolverInput,
+    NonMatchingInput,
+    ResolverInputForGroupBy,
+    ResolverInputForLimit,
+    ResolverInputForMetric,
+    ResolverInputForOrderBy,
+    ResolverInputForQuery,
+    ResolverInputForWhereFilterIntersection,
+)
+from metricflow.query.resolver_inputs.string_inputs import (
+    InvalidStringInput,
+    StringInputForOrderBy,
+    StringResolverInputForGroupBy,
+    StringResolverInputForMetric,
+)
 from metricflow.specs.column_assoc import ColumnAssociationResolver
+from metricflow.specs.patterns.metric_time_pattern import MetricTimePattern
 from metricflow.specs.python_object import parse_object_builder_naming_scheme
 from metricflow.specs.query_param_implementations import MetricParameter
 from metricflow.specs.specs import (
     MetricFlowQuerySpec,
+    TimeDimensionSpec,
+)
+from metricflow.time.time_granularity import (
+    adjust_to_end_of_period,
+    adjust_to_start_of_period,
+    is_period_end,
+    is_period_start,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,16 +84,8 @@ class MetricFlowQueryParser:
         self,
         column_association_resolver: ColumnAssociationResolver,
         model: SemanticManifestLookup,
-        read_nodes: Sequence[ReadSqlSourceNode],
-        node_output_resolver: DataflowPlanNodeOutputDataSetResolver,
     ) -> None:
-        self._column_association_resolver = column_association_resolver
-        self._model = model
-        self._metric_lookup = model.metric_lookup
-        self._semantic_model_lookup = model.semantic_model_lookup
-        self._node_output_resolver = node_output_resolver
-        self._read_nodes = read_nodes
-
+        self._manifest_lookup = model
         self._naming_schemes = (
             ObjectBuilderNamingScheme(),
             DunderNamingScheme(),
@@ -103,13 +127,13 @@ class MetricFlowQueryParser:
     def _get_saved_query(self, saved_query_parameter: SavedQueryParameter) -> SavedQuery:
         matching_saved_queries = [
             saved_query
-            for saved_query in self._model.semantic_manifest.saved_queries
+            for saved_query in self._manifest_lookup.semantic_manifest.saved_queries
             if saved_query.name == saved_query_parameter.name
         ]
 
         if len(matching_saved_queries) != 1:
             known_saved_query_names = sorted(
-                saved_query.name for saved_query in self._model.semantic_manifest.saved_queries
+                saved_query.name for saved_query in self._manifest_lookup.semantic_manifest.saved_queries
             )
             raise InvalidQueryException(
                 f"Did not find saved query `{saved_query_parameter.name}` in known saved queries:\n"
@@ -117,6 +141,174 @@ class MetricFlowQueryParser:
             )
 
         return matching_saved_queries[0]
+
+    @staticmethod
+    def _metric_time_granularity(time_dimension_specs: Sequence[TimeDimensionSpec]) -> Optional[TimeGranularity]:
+        metric_time_specs = MetricTimePattern().match(time_dimension_specs)
+        if len(metric_time_specs) == 0:
+            return None
+
+        return min(
+            tuple(spec.time_granularity for spec in metric_time_specs),
+            key=lambda time_granularity: time_granularity.to_int(),
+        )
+
+    def _adjust_time_constraint(
+        self, time_dimension_specs_in_query: Sequence[TimeDimensionSpec], time_constraint: TimeRangeConstraint
+    ) -> TimeRangeConstraint:
+        metric_time_granularity = MetricFlowQueryParser._metric_time_granularity(time_dimension_specs_in_query)
+        if metric_time_granularity is None:
+            return time_constraint
+
+        """Change the time range so that the ends are at the ends of the appropriate time granularity windows.
+
+        e.g. [2020-01-15, 2020-2-15] with MONTH granularity -> [2020-01-01, 2020-02-29]
+        """
+        constraint_start = time_constraint.start_time
+        constraint_end = time_constraint.end_time
+
+        start_ts = pd.Timestamp(time_constraint.start_time)
+        if not is_period_start(metric_time_granularity, start_ts):
+            constraint_start = adjust_to_start_of_period(metric_time_granularity, start_ts).to_pydatetime()
+
+        end_ts = pd.Timestamp(time_constraint.end_time)
+        if not is_period_end(metric_time_granularity, end_ts):
+            constraint_end = adjust_to_end_of_period(metric_time_granularity, end_ts).to_pydatetime()
+
+        if constraint_start < TimeRangeConstraint.ALL_TIME_BEGIN():
+            constraint_start = TimeRangeConstraint.ALL_TIME_BEGIN()
+        if constraint_end > TimeRangeConstraint.ALL_TIME_END():
+            constraint_end = TimeRangeConstraint.ALL_TIME_END()
+
+        return TimeRangeConstraint(start_time=constraint_start, end_time=constraint_end)
+
+    @staticmethod
+    def _parse_order_by_names(
+        order_by_names: Sequence[str],
+        resolver_inputs_for_metrics: Sequence[ResolverInputForMetric],
+        resolver_inputs_for_group_by: Sequence[ResolverInputForGroupBy],
+    ) -> Sequence[ResolverInputForOrderBy]:
+        resolver_input_for_order: List[ResolverInputForOrderBy] = []
+        for order_by_name in order_by_names:
+            descending = False
+            corresponding_query_item_name = order_by_name
+            if order_by_name[0] == "-":
+                descending = True
+                corresponding_query_item_name = order_by_name[1:]
+
+            order_by_name_is_invalid = True
+            for resolver_input_for_metrics in resolver_inputs_for_metrics:
+                if resolver_input_for_metrics.input_obj == corresponding_query_item_name:
+                    resolver_input_for_order.append(
+                        StringInputForOrderBy(
+                            input_item_to_order=resolver_input_for_metrics,
+                            descending=descending,
+                            input_str=order_by_name,
+                        )
+                    )
+                    order_by_name_is_invalid = False
+            for resolver_input_for_group_by in resolver_inputs_for_group_by:
+                if resolver_input_for_group_by.input_obj == corresponding_query_item_name:
+                    resolver_input_for_order.append(
+                        StringInputForOrderBy(
+                            input_item_to_order=resolver_input_for_group_by,
+                            descending=descending,
+                            input_str=order_by_name,
+                        )
+                    )
+                    order_by_name_is_invalid = False
+
+            if order_by_name_is_invalid:
+                resolver_input_for_order.append(
+                    ResolverInputForOrderBy(
+                        input_item_to_order=NonMatchingInput(input_obj=order_by_name),
+                        descending=False,
+                    )
+                )
+
+        return resolver_input_for_order
+
+    @staticmethod
+    def _parse_order_by(
+        order_by: Sequence[OrderByQueryParameter],
+    ) -> Sequence[ResolverInputForOrderBy]:
+        return tuple(order_by_query_parameter.query_resolver_input for order_by_query_parameter in order_by)
+
+        # resolver_input_for_order = []
+        # for order_by_query_parameter in order_by:
+        #     item_to_order_by = order_by_query_parameter.order_by
+        #     order_by_query_parameter_is_invalid = True
+        #     descending = order_by_query_parameter.descending
+        #     for resolver_input_for_metrics in resolver_inputs_for_metrics:
+        #         if resolver_input_for_metrics.input_obj == item_to_order_by:
+        #             resolver_input_for_order.append(
+        #                 StringInputForOrderBy(
+        #                     input_item_to_order=resolver_input_for_metrics,
+        #                     descending=descending,
+        #                     input_str=order_by_name,
+        #                 )
+        #             )
+        #             order_by_query_parameter_is_invalid = False
+        #     for resolver_input_for_group_by in resolver_inputs_for_group_by:
+        #         if resolver_input_for_group_by.input_obj == item_to_order_by:
+        #             resolver_input_for_order.append(
+        #                 StringInputForOrderBy(
+        #                     input_item_to_order=resolver_input_for_group_by,
+        #                     descending=descending,
+        #                     input_str=order_by_name,
+        #                 )
+        #             )
+        #             order_by_query_parameter_is_invalid = False
+        #
+        #     if order_by_query_parameter_is_invalid:
+        #         resolver_input_for_order.append(NonMatchingInput(input_obj=order_by_name))
+        #
+        # return resolver_input_for_order
+
+    @staticmethod
+    def _error_message(
+        input_to_issue_set: InputToIssueSetMapping,
+    ) -> Optional[str]:
+        lines: List[str] = ["Got errors while resolving the query."]
+
+        for item in input_to_issue_set.items:
+            resolver_input = item.resolver_input
+            issue_set = item.issue_set
+
+            if not issue_set.has_errors:
+                continue
+
+            lines.append(f"\nQuery input: {resolver_input.ui_description} has errors:")
+            naming_scheme = resolver_input.ui_description_naming_scheme()
+            issue_set_lines: List[str] = []
+            for i, error_issue in enumerate(issue_set.errors):
+                issue_set_lines.extend(
+                    [
+                        f"Error Issue #{i+1}:\n",
+                        error_issue.ui_description(naming_scheme),
+                    ]
+                )
+
+                if len(error_issue.query_resolution_path.resolution_path_nodes) > 0:
+                    issue_set_lines.extend(
+                        [
+                            "\nIssue Location:\n",
+                            error_issue.query_resolution_path.ui_description,
+                        ]
+                    )
+
+            lines.extend(textwrap.indent(issue_set_line, prefix="  ") for issue_set_line in issue_set_lines)
+
+        return "\n".join(lines)
+
+    def _raise_exception_if_there_are_errors(
+        self,
+        input_to_issue_set: InputToIssueSetMapping,
+    ) -> None:
+        if not input_to_issue_set.merged_issue_set.has_errors:
+            return
+
+        raise InvalidQueryException(self._error_message(input_to_issue_set=input_to_issue_set))
 
     def parse_and_validate_query(
         self,
@@ -131,30 +323,150 @@ class MetricFlowQueryParser:
         where_constraint_str: Optional[str] = None,
         order_by_names: Optional[Sequence[str]] = None,
         order_by: Optional[Sequence[OrderByQueryParameter]] = None,
+        include_time_range_constraint: bool = True,
     ) -> MetricFlowQuerySpec:
         """Parse the query into spec objects, validating them in the process.
 
         e.g. make sure that the given metric is a valid metric name.
         """
-        if time_constraint_start is not None:
-            raise NotImplementedError
-        if time_constraint_end is not None:
-            raise NotImplementedError
+        assert_at_most_one_arg_set(metric_names=metric_names, metrics=metrics)
+        assert_at_most_one_arg_set(group_by_names=group_by_names, group_by=group_by)
+        assert_at_most_one_arg_set(order_by_names=order_by_names, order_by=order_by)
+        assert_at_most_one_arg_set(where_constraint=where_constraint, where_constraint_str=where_constraint_str)
+
+        metric_names = metric_names or ()
+        metrics = metrics or ()
+
+        group_by_names = group_by_names or ()
+        group_by = group_by or ()
+
+        order_by_names = order_by_names or ()
+        order_by = order_by or ()
+
+        if time_constraint_start is None:
+            time_constraint_start = TimeRangeConstraint.ALL_TIME_BEGIN()
+            logger.info(f"time_constraint_start was None, so it was set to {time_constraint_start}")
+        if time_constraint_end is None:
+            time_constraint_end = TimeRangeConstraint.ALL_TIME_END()
+            logger.info(f"time_constraint_end was None, so it was set to {time_constraint_end}")
+
+        time_constraint = TimeRangeConstraint(
+            start_time=time_constraint_start,
+            end_time=time_constraint_end,
+        )
 
         resolver_inputs_for_metrics: List[ResolverInputForMetric] = []
 
         for metric_name in metric_names:
-            resolver_inputs_for_metrics.append(StringResolverInputForMetric(metric_name))
+            resolver_inputs_for_metrics.append(StringResolverInputForMetric.from_str(metric_name))
         for metric_query_parameter in metrics:
             resolver_inputs_for_metrics.append(metric_query_parameter.query_resolver_input)
 
+        input_to_issue_set: List[InputToIssueSetMappingItem] = []
+
+        resolver_inputs_for_group_by: List[ResolverInputForGroupBy] = []
         for group_by_name in group_by_names:
+            resolver_input: Optional[MetricFlowQueryResolverInput] = None
             for naming_scheme in self._naming_schemes:
-                # if naming_scheme.input_str_follows_scheme():
-                #     resolver_inputs_for_group_by.append(
-                #         StringResolverInputForGroupBy()
-                #     )
-                raise NotImplementedError
+                if naming_scheme.input_str_follows_scheme(group_by_name):
+                    spec_pattern = naming_scheme.spec_pattern(group_by_name)
+                    resolver_input = StringResolverInputForGroupBy(
+                        input_obj=group_by_name,
+                        naming_scheme=naming_scheme,
+                        spec_pattern=spec_pattern,
+                    )
+                    resolver_inputs_for_group_by.append(resolver_input)
+                    break
+            if resolver_input is None:
+                resolver_input = InvalidStringInput(group_by_name)
+                input_to_issue_set.append(
+                    InputToIssueSetMappingItem(
+                        resolver_input=resolver_input,
+                        issue_set=MetricFlowQueryResolutionIssueSet.from_issue(
+                            GroupByItemNameParsingIssue.from_parameters(
+                                input_str=group_by_name,
+                            )
+                        ),
+                    )
+                )
+
+            logger.info(
+                "Converted group-by-item input:\n"
+                + indent_log_line(f"Input: {repr(group_by_name)}")
+                + "\n"
+                + indent_log_line(f"Resolver Input: {mf_pformat(resolver_input)}")
+            )
+
+        for group_by_parameter in group_by:
+            resolver_input_for_group_by_parameter = group_by_parameter.query_resolver_input
+            resolver_inputs_for_group_by.append(resolver_input_for_group_by_parameter)
+            logger.info(
+                "Converted group-by-item input:\n"
+                + indent_log_line(f"Input: {repr(group_by_parameter)}")
+                + "\n"
+                + indent_log_line(f"Resolver Input: {mf_pformat(resolver_input_for_group_by_parameter)}")
+            )
+
+        where_filters: List[PydanticWhereFilter] = []
+
+        if where_constraint is not None:
+            where_filters.append(PydanticWhereFilter(where_sql_template=where_constraint.where_sql_template))
+        if where_constraint_str is not None:
+            where_filters.append(PydanticWhereFilter(where_sql_template=where_constraint_str))
+        resolver_input_for_filter = ResolverInputForWhereFilterIntersection(
+            where_filter_intersection=PydanticWhereFilterIntersection(where_filters=where_filters)
+        )
+
+        self._raise_exception_if_there_are_errors(
+            input_to_issue_set=InputToIssueSetMapping(items=tuple(input_to_issue_set)),
+        )
+
+        query_resolver = MetricFlowQueryResolver(
+            manifest_lookup=self._manifest_lookup,
+        )
+
+        resolver_inputs_for_order_by: List[ResolverInputForOrderBy] = []
+        resolver_inputs_for_order_by.extend(
+            MetricFlowQueryParser._parse_order_by_names(
+                order_by_names=order_by_names,
+                resolver_inputs_for_metrics=resolver_inputs_for_metrics,
+                resolver_inputs_for_group_by=resolver_inputs_for_group_by,
+            )
+        )
+        resolver_inputs_for_order_by.extend(MetricFlowQueryParser._parse_order_by(order_by=order_by))
+
+        resolver_input_for_limit = ResolverInputForLimit(limit=limit)
+
+        resolver_input_for_query = ResolverInputForQuery(
+            metric_inputs=tuple(resolver_inputs_for_metrics),
+            group_by_item_inputs=tuple(resolver_inputs_for_group_by),
+            order_by_item_inputs=tuple(resolver_inputs_for_order_by),
+            limit_input=resolver_input_for_limit,
+            filter_input=resolver_input_for_filter,
+        )
+
+        logger.info("Resolver input for query is:\n" + indent_log_line(mf_pformat(resolver_input_for_query)))
+
+        query_resolution = query_resolver.resolve_query(resolver_input_for_query)
+
+        logger.info("Query resolution is:\n" + indent_log_line(mf_pformat(query_resolution)))
+
+        self._raise_exception_if_there_are_errors(
+            input_to_issue_set=query_resolution.input_to_issue_set,
+        )
+
+        query_spec = query_resolution.checked_query_spec
+
+        if include_time_range_constraint:
+            time_constraint = self._adjust_time_constraint(
+                time_dimension_specs_in_query=query_spec.time_dimension_specs,
+                time_constraint=time_constraint,
+            )
+            logger.info(f"Time constraint after adjustment is: {time_constraint}")
+
+            return query_spec.with_time_range_constraint(time_constraint)
+
+        return query_spec
 
     # def _validate_no_metric_time_dimension_query(
     #     self, metric_references: Sequence[MetricReference], time_dimension_specs: Sequence[TimeDimensionSpec]

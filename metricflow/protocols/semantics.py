@@ -28,11 +28,9 @@ from dbt_semantic_interfaces.references import (
 
 from metricflow.model.semantics.element_group import ElementGrouper
 from metricflow.model.semantics.linkable_element_properties import LinkableElementProperties
-from metricflow.specs.column_assoc import ColumnAssociationResolver
 from metricflow.specs.specs import (
     LinkableInstanceSpec,
     MeasureSpec,
-    MetricSpec,
     NonAdditiveDimensionSpec,
 )
 
@@ -170,15 +168,6 @@ class MetricAccessor(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def metric_input_specs_for_metric(
-        self,
-        metric_reference: MetricReference,
-        column_association_resolver: ColumnAssociationResolver,
-    ) -> Sequence[MetricSpec]:
-        """Returns the metric input specs required to compute the metric."""
-        raise NotImplementedError
-
-    @abstractmethod
     def configured_input_measure_for_metric(self, metric_reference: MetricReference) -> Optional[MetricInputMeasure]:
         """Get input measure defined in the original metric config, if exists.
 
@@ -188,3 +177,12 @@ class MetricAccessor(ABC):
         - Derived & ratio metrics take no input measures, only input metrics.
         """
         raise NotImplementedError
+
+    # @abstractmethod
+    # def group_by_item_specs_for_no_metrics_query(
+    #         self,
+    #         with_any_of: Optional[Set[LinkableElementProperties]] = None,
+    #         without_any_of: Optional[Set[LinkableElementProperties]] = None,
+    #     ) -> Sequence[LinkableInstanceSpec]:
+    #     """"""
+    #     raise NotImplementedError
