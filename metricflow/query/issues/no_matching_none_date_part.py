@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Sequence, Tuple
+from typing import Sequence, Tuple
 
 from typing_extensions import override
 
 from metricflow.collection_helpers.pretty_print import mf_pformat
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryIssueType,
     MetricFlowQueryResolutionIssue,
-    MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
 from metricflow.specs.specs import LinkableInstanceSpec
 
 
@@ -34,15 +34,15 @@ class NoCandidatesWithNoneDatePartIssue(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
+    def ui_description(self, associated_input: MetricFlowQueryResolverInput) -> str:
         # TODO: Improve error.
         lines = [
             f"{self.query_resolution_path.last_item.ui_description} does not allow group-by-items "
             f"with a date part in the query. Considered group by items:\n"
         ]
 
-        if associated_input is not None and associated_input.naming_scheme is not None:
-            naming_scheme = associated_input.naming_scheme
+        if associated_input.input_pattern_description is not None:
+            naming_scheme = associated_input.input_pattern_description.naming_scheme
         else:
             naming_scheme = None
 

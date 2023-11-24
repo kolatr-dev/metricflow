@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
 from typing_extensions import override
 
@@ -10,12 +10,12 @@ from metricflow.formatting import indent_log_line
 from metricflow.naming.object_builder_scheme import ObjectBuilderNamingScheme
 from metricflow.query.group_by_item.candidate_push_down.group_by_item_candidate import GroupByItemCandidateSet
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryIssueType,
     MetricFlowQueryResolutionIssue,
-    MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
 
 
 @dataclass(frozen=True)
@@ -35,9 +35,9 @@ class AmbiguousGroupByItemIssue(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
-        if associated_input is not None and associated_input.naming_scheme is not None:
-            naming_scheme = associated_input.naming_scheme
+    def ui_description(self, associated_input: MetricFlowQueryResolverInput) -> str:
+        if associated_input.input_pattern_description is not None:
+            naming_scheme = associated_input.input_pattern_description.naming_scheme
         else:
             naming_scheme = ObjectBuilderNamingScheme()
         candidates_str: List[str] = []

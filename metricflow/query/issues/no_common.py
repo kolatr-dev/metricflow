@@ -1,20 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, Sequence, Tuple
 
 from typing_extensions import override
 
 from metricflow.collection_helpers.pretty_print import mf_pformat
 from metricflow.formatting import indent_log_line
+from metricflow.naming.object_builder_scheme import ObjectBuilderNamingScheme
 from metricflow.query.group_by_item.candidate_push_down.group_by_item_candidate import GroupByItemCandidateSet
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryIssueType,
     MetricFlowQueryResolutionIssue,
-    MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
 
 
 @dataclass(frozen=True)
@@ -35,23 +36,24 @@ class NoCommonItemsInParents(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
+    def ui_description(self, associated_input: MetricFlowQueryResolverInput) -> str:
         last_path_item = self.query_resolution_path.last_item
         last_path_item_parent_descriptions = ", ".join(
             [parent_node.ui_description for parent_node in last_path_item.parent_nodes]
         )
-        naming_scheme = associated_input.naming_scheme if associated_input is not None else None
+        naming_scheme = (
+            associated_input.input_pattern_description.naming_scheme
+            if associated_input.input_pattern_description is not None
+            else ObjectBuilderNamingScheme()
+        )
 
         parent_to_available_items = {}
         for candidate_set in self.parent_candidate_sets:
             resolution_node = candidate_set.path_from_leaf_node.last_item
-            if naming_scheme is not None:
-                spec_as_strs = tuple(naming_scheme.input_str(spec) for spec in candidate_set.specs)
-            else:
-                spec_as_strs = tuple(repr(spec) for spec in candidate_set.specs)
-            parent_to_available_items["Matching items for: " + resolution_node.ui_description] = ", ".join(
+            spec_as_strs = tuple(naming_scheme.input_str(spec) for spec in candidate_set.specs)
+            parent_to_available_items["Matching items for: " + resolution_node.ui_description] = [
                 (spec_str if spec_str is not None else "None") for spec_str in spec_as_strs
-            )
+            ]
         return (
             f"{last_path_item.ui_description} is built from {last_path_item_parent_descriptions}. However, the "
             f"given input does not match to a common item that is available to those parents:\n\n"

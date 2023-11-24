@@ -9,8 +9,9 @@ from dbt_semantic_interfaces.type_enums import MetricType, TimeGranularity
 from dbt_semantic_interfaces.type_enums.date_part import DatePart
 
 from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.issues.cumulative_metric_requires_metric_time import CumulativeMetricRequiresMetricTimeIssue
-from metricflow.query.issues.issues_base import MetricFlowQueryResolutionIssueSet, MetricFlowQueryResolutionPath
+from metricflow.query.issues.issues_base import MetricFlowQueryResolutionIssueSet
 from metricflow.query.issues.offset_metric_requires_metric_time import OffsetMetricRequiresMetricTimeIssue
 from metricflow.query.resolver_inputs.query_resolver_inputs import ResolverInputForQuery
 from metricflow.query.validation_rules.base_validation_rule import PostResolutionQueryValidationRule
@@ -64,7 +65,11 @@ class MetricTimeQueryValidationRule(PostResolutionQueryValidationRule):
         if metric.type is MetricType.SIMPLE:
             return MetricFlowQueryResolutionIssueSet.empty_instance()
         elif metric.type is MetricType.CUMULATIVE:
-            if not query_includes_metric_time:
+            if (
+                metric.type_params is not None
+                and (metric.type_params.window is not None or metric.type_params.grain_to_date is not None)
+                and not query_includes_metric_time
+            ):
                 return MetricFlowQueryResolutionIssueSet.from_issue(
                     CumulativeMetricRequiresMetricTimeIssue.create(
                         metric_reference=metric_reference,

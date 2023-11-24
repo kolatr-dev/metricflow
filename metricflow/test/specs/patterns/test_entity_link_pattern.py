@@ -57,7 +57,7 @@ def specs() -> Sequence[LinkableInstanceSpec]:  # noqa: D
 
 def test_valid_parameter_fields() -> None:
     """Tests that ParameterSetField.value maps to a valid field in EntityLinkPatternParameterSet."""
-    parameter_set = EntityLinkPatternParameterSet(
+    parameter_set = EntityLinkPatternParameterSet.from_parameters(
         fields_to_compare=(),
         element_name=None,
         entity_links=None,
@@ -71,7 +71,7 @@ def test_valid_parameter_fields() -> None:
 
 def test_dimension_match(specs: Sequence[LinkableInstanceSpec]) -> None:  # noqa: D
     pattern = EntityLinkPattern(
-        EntityLinkPatternParameterSet(
+        EntityLinkPatternParameterSet.from_parameters(
             element_name="is_instant",
             entity_links=(EntityReference(element_name="booking"),),
             time_granularity=None,
@@ -90,7 +90,7 @@ def test_dimension_match(specs: Sequence[LinkableInstanceSpec]) -> None:  # noqa
 
 def test_entity_match(specs: Sequence[LinkableInstanceSpec]) -> None:  # noqa: D
     pattern = EntityLinkPattern(
-        EntityLinkPatternParameterSet(
+        EntityLinkPatternParameterSet.from_parameters(
             element_name="listing",
             entity_links=(EntityReference(element_name="booking"),),
             time_granularity=None,
@@ -109,7 +109,7 @@ def test_entity_match(specs: Sequence[LinkableInstanceSpec]) -> None:  # noqa: D
 
 def test_time_dimension_match(specs: Sequence[LinkableInstanceSpec]) -> None:  # noqa: D
     pattern = EntityLinkPattern(
-        EntityLinkPatternParameterSet(
+        EntityLinkPatternParameterSet.from_parameters(
             element_name=METRIC_TIME_ELEMENT_NAME,
             entity_links=(),
             time_granularity=TimeGranularity.WEEK,
@@ -127,7 +127,7 @@ def test_time_dimension_match(specs: Sequence[LinkableInstanceSpec]) -> None:  #
 
 def test_time_dimension_match_without_grain_specified(specs: Sequence[LinkableInstanceSpec]) -> None:  # noqa: D
     pattern = EntityLinkPattern(
-        EntityLinkPatternParameterSet(
+        EntityLinkPatternParameterSet.from_parameters(
             element_name=METRIC_TIME_ELEMENT_NAME,
             entity_links=(),
             time_granularity=None,
@@ -149,7 +149,7 @@ def test_time_dimension_match_without_grain_specified(specs: Sequence[LinkableIn
 def test_time_dimension_date_part_mismatch(specs: Sequence[LinkableInstanceSpec]) -> None:
     """Checks that a None for the date_part field does not match to a non-None value."""
     pattern = EntityLinkPattern(
-        EntityLinkPatternParameterSet(
+        EntityLinkPatternParameterSet.from_parameters(
             element_name="creation_time",
             entity_links=None,
             time_granularity=None,
@@ -167,7 +167,7 @@ def test_time_dimension_date_part_mismatch(specs: Sequence[LinkableInstanceSpec]
 def test_time_dimension_date_part_match(specs: Sequence[LinkableInstanceSpec]) -> None:
     """Checks that a correct date_part field produces a match."""
     pattern = EntityLinkPattern(
-        EntityLinkPatternParameterSet(
+        EntityLinkPatternParameterSet.from_parameters(
             element_name="creation_time",
             entity_links=None,
             time_granularity=None,

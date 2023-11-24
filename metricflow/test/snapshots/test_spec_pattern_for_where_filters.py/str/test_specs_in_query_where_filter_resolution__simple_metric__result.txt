@@ -1,15 +1,20 @@
-ResolvedSpecLookup(
-  call_parameter_set_to_spec_mappings=(
-    CallParameterSetToSpecMapping(
+FilterSpecResolutionLookUp(
+  spec_resolutions=(
+    WhereFilterSpecResolution(
       lookup_key=ResolvedSpecLookUpKey(
-        filter_location=WhereFilterLocation(metric_references=(MetricReference(element_name='daily_metric_0'),)),
-        call_parameter_set=
-        TimeDimensionCallParameterSet(time_dimension_reference=TimeDimensionReference(element_name='metric_time')),
+        filter_location=WhereFilterLocation(
+          metric_references=(MetricReference(element_name='daily_metric_0'),),
+        ),
+        call_parameter_set=TimeDimensionCallParameterSet(
+          time_dimension_reference=TimeDimensionReference(
+            element_name='metric_time',
+          ),
+        ),
       ),
-      resolution_path=
-      MetricFlowQueryResolutionPath(resolution_path_nodes=(QueryGroupByItemResolutionNode(node_id=qr_1),)),
+      resolution_path=MetricFlowQueryResolutionPath(
+        resolution_path_nodes=(QueryGroupByItemResolutionNode(node_id=qr_1),),
+      ),
       resolved_spec=TimeDimensionSpec(element_name='metric_time', time_granularity=DAY),
     ),
   ),
-  issue_set=MetricFlowQueryResolutionIssueSet(),
 )

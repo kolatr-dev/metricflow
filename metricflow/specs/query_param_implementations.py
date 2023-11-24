@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from dbt_semantic_interfaces.protocols import ProtocolHint
-from dbt_semantic_interfaces.references import EntityReference, MetricReference
+from dbt_semantic_interfaces.references import EntityReference
 from dbt_semantic_interfaces.type_enums.date_part import DatePart
 from dbt_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 from typing_extensions import override
@@ -19,16 +19,15 @@ from metricflow.protocols.query_parameter import (
 )
 from metricflow.protocols.query_parameter import SavedQueryParameter as SavedQueryParameterProtocol
 from metricflow.query.resolver_inputs.query_resolver_inputs import (
-    ResolverInputForGroupBy,
+    ResolverInputForGroupByItem,
     ResolverInputForMetric,
-    ResolverInputForOrderBy,
+    ResolverInputForOrderByItem,
 )
 from metricflow.specs.patterns.entity_link_pattern import (
     EntityLinkPattern,
     EntityLinkPatternParameterSet,
     ParameterSetField,
 )
-from metricflow.specs.patterns.metric_pattern import MetricSpecPattern
 
 
 @dataclass(frozen=True)
@@ -48,7 +47,7 @@ class TimeDimensionParameter(ProtocolHint[TimeDimensionQueryParameter]):
             raise ValueError("Must use object syntax for `grain` parameter if `date_part` is requested.")
 
     @property
-    def query_resolver_input(self) -> ResolverInputForGroupBy:
+    def query_resolver_input(self) -> ResolverInputForGroupByItem:
         fields_to_compare = [
             ParameterSetField.ELEMENT_NAME,
             ParameterSetField.ENTITY_LINKS,
@@ -59,7 +58,7 @@ class TimeDimensionParameter(ProtocolHint[TimeDimensionQueryParameter]):
 
         name_structure = StructuredLinkableSpecName.from_name(self.name.lower())
 
-        return ResolverInputForGroupBy(
+        return ResolverInputForGroupByItem(
             input_obj=self,
             input_obj_naming_scheme=ObjectBuilderNamingScheme(),
             spec_pattern=EntityLinkPattern(
@@ -88,14 +87,14 @@ class DimensionOrEntityParameter(ProtocolHint[DimensionOrEntityQueryParameter]):
         return self
 
     @property
-    def query_resolver_input(self) -> ResolverInputForGroupBy:  # noqa: D
+    def query_resolver_input(self) -> ResolverInputForGroupByItem:  # noqa: D
         name_structure = StructuredLinkableSpecName.from_name(self.name.lower())
 
-        return ResolverInputForGroupBy(
+        return ResolverInputForGroupByItem(
             input_obj=self,
             input_obj_naming_scheme=ObjectBuilderNamingScheme(),
             spec_pattern=EntityLinkPattern(
-                EntityLinkPatternParameterSet(
+                EntityLinkPatternParameterSet.from_parameters(
                     fields_to_compare=(
                         ParameterSetField.ELEMENT_NAME,
                         ParameterSetField.ENTITY_LINKS,
@@ -118,10 +117,11 @@ class MetricParameter:
 
     @property
     def query_resolver_input(self) -> ResolverInputForMetric:
+        naming_scheme = MetricNamingScheme()
         return ResolverInputForMetric(
             input_obj=self,
-            naming_scheme=MetricNamingScheme(),
-            spec_pattern=MetricSpecPattern(metric_reference=self.name)
+            naming_scheme=naming_scheme,
+            spec_pattern=naming_scheme.spec_pattern(self.name),
         )
 
 
@@ -133,8 +133,8 @@ class OrderByParameter:
     descending: bool = False
 
     @property
-    def query_resolver_input(self) -> ResolverInputForOrderBy:
-        return ResolverInputForOrderBy(
+    def query_resolver_input(self) -> ResolverInputForOrderByItem:
+        return ResolverInputForOrderByItem(
             input_obj=self,
             possible_inputs=(self.order_by.query_resolver_input,),
             descending=self.descending,

@@ -5,10 +5,10 @@ SELECT
 FROM (
   -- Combine Aggregated Outputs
   SELECT
-    COALESCE(subq_41.metric_time__day, subq_53.metric_time__day, subq_58.metric_time__day) AS metric_time__day
-    , MAX(subq_41.average_booking_value) AS average_booking_value
-    , MAX(subq_53.bookings) AS bookings
-    , MAX(subq_58.booking_value) AS booking_value
+    COALESCE(subq_45.metric_time__day, subq_58.metric_time__day, subq_64.metric_time__day) AS metric_time__day
+    , MAX(subq_45.average_booking_value) AS average_booking_value
+    , MAX(subq_58.bookings) AS bookings
+    , MAX(subq_64.booking_value) AS booking_value
   FROM (
     -- Constrain Output with WHERE
     -- Pass Only Elements:
@@ -23,19 +23,31 @@ FROM (
       -- Pass Only Elements:
       --   ['average_booking_value', 'listing__is_lux_latest', 'metric_time__day']
       SELECT
-        DATE_TRUNC('day', bookings_source_src_10001.ds) AS metric_time__day
+        subq_36.metric_time__day AS metric_time__day
         , listings_latest_src_10004.is_lux AS listing__is_lux_latest
-        , bookings_source_src_10001.booking_value AS average_booking_value
-      FROM ***************************.fct_bookings bookings_source_src_10001
+        , subq_36.average_booking_value AS average_booking_value
+      FROM (
+        -- Read Elements From Semantic Model 'bookings_source'
+        -- Metric Time Dimension 'ds'
+        -- Constrain Time Range to [2000-01-01T00:00:00, 2040-12-31T00:00:00]
+        -- Pass Only Elements:
+        --   ['average_booking_value', 'metric_time__day', 'listing']
+        SELECT
+          DATE_TRUNC('day', ds) AS metric_time__day
+          , listing_id AS listing
+          , booking_value AS average_booking_value
+        FROM ***************************.fct_bookings bookings_source_src_10001
+        WHERE DATE_TRUNC('day', ds) BETWEEN '2000-01-01' AND '2040-12-31'
+      ) subq_36
       LEFT OUTER JOIN
         ***************************.dim_listings_latest listings_latest_src_10004
       ON
-        bookings_source_src_10001.listing_id = listings_latest_src_10004.listing_id
-    ) subq_37
+        subq_36.listing = listings_latest_src_10004.listing_id
+    ) subq_41
     WHERE listing__is_lux_latest
     GROUP BY
       metric_time__day
-  ) subq_41
+  ) subq_45
   FULL OUTER JOIN (
     -- Constrain Output with WHERE
     -- Pass Only Elements:
@@ -50,12 +62,13 @@ FROM (
       -- Pass Only Elements:
       --   ['bookings', 'listing__is_lux_latest', 'metric_time__day']
       SELECT
-        subq_44.metric_time__day AS metric_time__day
+        subq_49.metric_time__day AS metric_time__day
         , listings_latest_src_10004.is_lux AS listing__is_lux_latest
-        , subq_44.bookings AS bookings
+        , subq_49.bookings AS bookings
       FROM (
         -- Read Elements From Semantic Model 'bookings_source'
         -- Metric Time Dimension 'ds'
+        -- Constrain Time Range to [2000-01-01T00:00:00, 2040-12-31T00:00:00]
         -- Pass Only Elements:
         --   ['bookings', 'metric_time__day', 'listing']
         SELECT
@@ -63,21 +76,23 @@ FROM (
           , listing_id AS listing
           , 1 AS bookings
         FROM ***************************.fct_bookings bookings_source_src_10001
-      ) subq_44
+        WHERE DATE_TRUNC('day', ds) BETWEEN '2000-01-01' AND '2040-12-31'
+      ) subq_49
       LEFT OUTER JOIN
         ***************************.dim_listings_latest listings_latest_src_10004
       ON
-        subq_44.listing = listings_latest_src_10004.listing_id
-    ) subq_49
+        subq_49.listing = listings_latest_src_10004.listing_id
+    ) subq_54
     WHERE listing__is_lux_latest
     GROUP BY
       metric_time__day
-  ) subq_53
+  ) subq_58
   ON
-    subq_41.metric_time__day = subq_53.metric_time__day
+    subq_45.metric_time__day = subq_58.metric_time__day
   FULL OUTER JOIN (
     -- Read Elements From Semantic Model 'bookings_source'
     -- Metric Time Dimension 'ds'
+    -- Constrain Time Range to [2000-01-01T00:00:00, 2040-12-31T00:00:00]
     -- Pass Only Elements:
     --   ['booking_value', 'metric_time__day']
     -- Aggregate Measures
@@ -86,11 +101,12 @@ FROM (
       DATE_TRUNC('day', ds) AS metric_time__day
       , SUM(booking_value) AS booking_value
     FROM ***************************.fct_bookings bookings_source_src_10001
+    WHERE DATE_TRUNC('day', ds) BETWEEN '2000-01-01' AND '2040-12-31'
     GROUP BY
       DATE_TRUNC('day', ds)
-  ) subq_58
+  ) subq_64
   ON
-    COALESCE(subq_41.metric_time__day, subq_53.metric_time__day) = subq_58.metric_time__day
+    COALESCE(subq_45.metric_time__day, subq_58.metric_time__day) = subq_64.metric_time__day
   GROUP BY
-    COALESCE(subq_41.metric_time__day, subq_53.metric_time__day, subq_58.metric_time__day)
-) subq_59
+    COALESCE(subq_45.metric_time__day, subq_58.metric_time__day, subq_64.metric_time__day)
+) subq_65

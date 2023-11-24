@@ -1,11 +1,59 @@
-spec:
-    None
-issue_0_description:
-    Metric('derived_metric_with_different_parent_time_grains') is built from Metric('daily_metric_0'), Metric('monthly_metric_0'). However, the given input does not match to a common item that is available to those parents:
-      Matching items for: Metric('daily_metric_0'):
-          TimeDimension('metric_time', 'day')
-      Matching items for: Metric('monthly_metric_0'):
-          TimeDimension('metric_time', 'month')
-issue_0_location:
-    [Resolve Query(['derived_metric_with_different_parent_time_grains'])]
-      -> [Resolve Metric('derived_metric_with_different_parent_time_grains')]
+GroupByItemResolution(
+  issue_set=MetricFlowQueryResolutionIssueSet(
+    issues=(
+      NoCommonItemsInParents(
+        issue_type=ERROR,
+        query_resolution_path=MetricFlowQueryResolutionPath(
+          resolution_path_nodes=(
+            QueryGroupByItemResolutionNode(node_id=qr_5),
+            MetricGroupByItemResolutionNode(node_id=mtr_10),
+          ),
+        ),
+        parent_candidate_sets=(
+          GroupByItemCandidateSet(
+            specs=(TimeDimensionSpec(element_name='metric_time', time_granularity=DAY),),
+            measure_paths=(
+              MetricFlowQueryResolutionPath(
+                resolution_path_nodes=(
+                  QueryGroupByItemResolutionNode(node_id=qr_5),
+                  MetricGroupByItemResolutionNode(node_id=mtr_10),
+                  MetricGroupByItemResolutionNode(node_id=mtr_8),
+                  MeasureGroupByItemResolutionNode(node_id=msr_7),
+                ),
+              ),
+            ),
+            path_from_leaf_node=MetricFlowQueryResolutionPath(
+              resolution_path_nodes=(
+                QueryGroupByItemResolutionNode(node_id=qr_5),
+                MetricGroupByItemResolutionNode(node_id=mtr_10),
+                MetricGroupByItemResolutionNode(node_id=mtr_8),
+              ),
+            ),
+          ),
+          GroupByItemCandidateSet(
+            specs=(
+              TimeDimensionSpec(element_name='metric_time', time_granularity=MONTH),
+            ),
+            measure_paths=(
+              MetricFlowQueryResolutionPath(
+                resolution_path_nodes=(
+                  QueryGroupByItemResolutionNode(node_id=qr_5),
+                  MetricGroupByItemResolutionNode(node_id=mtr_10),
+                  MetricGroupByItemResolutionNode(node_id=mtr_9),
+                  MeasureGroupByItemResolutionNode(node_id=msr_8),
+                ),
+              ),
+            ),
+            path_from_leaf_node=MetricFlowQueryResolutionPath(
+              resolution_path_nodes=(
+                QueryGroupByItemResolutionNode(node_id=qr_5),
+                MetricGroupByItemResolutionNode(node_id=mtr_10),
+                MetricGroupByItemResolutionNode(node_id=mtr_9),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  ),
+)

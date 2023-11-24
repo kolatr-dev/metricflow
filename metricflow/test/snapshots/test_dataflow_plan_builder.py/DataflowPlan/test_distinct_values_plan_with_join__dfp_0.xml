@@ -11,7 +11,7 @@
             <!--                      'element_name': 'is_lux_latest',                  -->
             <!--                      'entity_links': ({'class': 'EntityReference',     -->
             <!--                                        'element_name': 'listing'},)},  -->
-            <!--    'descending': False}                                                -->
+            <!--    'descending': True}                                                 -->
             <!-- limit = 100 -->
             <FilterElementsNode>
                 <!-- description =                                              -->

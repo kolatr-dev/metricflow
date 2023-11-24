@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Sequence, Tuple
+from typing import Sequence, Tuple
 
 from typing_extensions import override
 
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryIssueType,
     MetricFlowQueryResolutionIssue,
-    MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
 from metricflow.specs.specs import LinkableInstanceSpec
 
 
@@ -33,7 +33,7 @@ class NoMatchingGroupByItemsAtRoot(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
+    def ui_description(self, associated_input: MetricFlowQueryResolverInput) -> str:
         return (
             f"The given input does not match any of the available group by items for "
             f"{self.query_resolution_path.last_item.ui_description}."

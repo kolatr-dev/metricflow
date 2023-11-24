@@ -7,7 +7,9 @@ from typing_extensions import override
 from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
 from metricflow.query.group_by_item.candidate_push_down.push_down_visitor import DagTraversalPathTracker
 from metricflow.query.group_by_item.resolution_dag import GroupByItemResolutionDag
-from metricflow.query.group_by_item.resolution_nodes.any_model_resolution_node import AnyModelGroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_nodes.any_model_resolution_node import (
+    NoMetricsQueryGroupByItemResolutionNode,
+)
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNodeVisitor
 from metricflow.query.group_by_item.resolution_nodes.measure_resolution_node import MeasureGroupByItemResolutionNode
 from metricflow.query.group_by_item.resolution_nodes.metric_resolution_node import MetricGroupByItemResolutionNode
@@ -72,7 +74,7 @@ class _PostResolutionQueryValidationVisitor(GroupByItemResolutionNodeVisitor[Met
             )
 
     @override
-    def visit_any_model_node(self, node: AnyModelGroupByItemResolutionNode) -> MetricFlowQueryResolutionIssueSet:
+    def visit_any_model_node(self, node: NoMetricsQueryGroupByItemResolutionNode) -> MetricFlowQueryResolutionIssueSet:
         with self._path_from_start_node_tracker.track_node_visit(node):
             return MetricFlowQueryResolutionIssueSet.merge_iterable(
                 parent_node.accept(self) for parent_node in node.parent_nodes

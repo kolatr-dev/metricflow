@@ -1,15 +1,20 @@
-ResolvedSpecLookup(
-  call_parameter_set_to_spec_mappings=(
-    CallParameterSetToSpecMapping(
+FilterSpecResolutionLookUp(
+  spec_resolutions=(
+    WhereFilterSpecResolution(
       lookup_key=ResolvedSpecLookUpKey(
-        filter_location=WhereFilterLocation(metric_references=(MetricReference(element_name='cumulative_metric'),)),
-        call_parameter_set=
-        TimeDimensionCallParameterSet(time_dimension_reference=TimeDimensionReference(element_name='metric_time')),
+        filter_location=WhereFilterLocation(
+          metric_references=(MetricReference(element_name='cumulative_metric'),),
+        ),
+        call_parameter_set=TimeDimensionCallParameterSet(
+          time_dimension_reference=TimeDimensionReference(
+            element_name='metric_time',
+          ),
+        ),
       ),
-      resolution_path=
-      MetricFlowQueryResolutionPath(resolution_path_nodes=(QueryGroupByItemResolutionNode(node_id=qr_6),)),
+      resolution_path=MetricFlowQueryResolutionPath(
+        resolution_path_nodes=(QueryGroupByItemResolutionNode(node_id=qr_6),),
+      ),
       resolved_spec=TimeDimensionSpec(element_name='metric_time', time_granularity=MONTH),
     ),
   ),
-  issue_set=MetricFlowQueryResolutionIssueSet(),
 )

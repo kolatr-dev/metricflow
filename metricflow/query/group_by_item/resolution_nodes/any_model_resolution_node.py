@@ -13,7 +13,7 @@ from metricflow.query.group_by_item.resolution_nodes.metric_resolution_node impo
 from metricflow.visitor import VisitorOutputT
 
 
-class AnyModelGroupByItemResolutionNode(GroupByItemResolutionNode):
+class NoMetricsQueryGroupByItemResolutionNode(GroupByItemResolutionNode):
     def __init__(
         self,
     ) -> None:

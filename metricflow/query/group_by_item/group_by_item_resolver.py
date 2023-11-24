@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -16,15 +17,17 @@ from metricflow.query.group_by_item.candidate_push_down.push_down_visitor import
     _PushDownGroupByItemCandidatesVisitor,
 )
 from metricflow.query.group_by_item.resolution_dag import GroupByItemResolutionDag, ResolutionDagSinkNode
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.issues.ambiguous_group_by_item import AmbiguousGroupByItemIssue
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssueSet,
-    MetricFlowQueryResolutionPath,
 )
 from metricflow.specs.patterns.base_time_grain import BaseTimeGrainPattern
 from metricflow.specs.patterns.entity_link_pattern import TimeDimensionPattern
 from metricflow.specs.patterns.spec_pattern import SpecPattern
 from metricflow.specs.specs import LinkableInstanceSpec, LinkableSpecSet
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,12 @@ class GroupByItemResolver:
 
         push_down_result = push_down_result.filter_candidates_by_pattern(
             BaseTimeGrainPattern(),
+        )
+        logger.info(
+            f"Spec pattern:\n"
+            f"{indent_log_line(mf_pformat(spec_pattern))}\n"
+            f"was resolved to:\n"
+            f"{indent_log_line(mf_pformat(push_down_result.candidate_set.specs))}"
         )
         if push_down_result.candidate_set.num_candidates > 1:
             return GroupByItemResolution(
@@ -158,7 +167,8 @@ class GroupByItemResolver:
         )
         if len(metric_time_spec_set.time_dimension_specs) != 1:
             raise RuntimeError(
-                f"The grain for {repr(METRIC_TIME_ELEMENT_NAME)} could not be resolved. Got issues:\n\n"
+                f"The grain for {repr(METRIC_TIME_ELEMENT_NAME)} could not be resolved. Got spec "
+                f"{metric_time_grain_resolution.spec} and issues:\n\n"
                 f"{indent_log_line(mf_pformat(metric_time_grain_resolution.issue_set))}"
             )
         return metric_time_spec_set.time_dimension_specs[0].time_granularity

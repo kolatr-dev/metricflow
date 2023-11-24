@@ -141,7 +141,7 @@ class MetricFlowPrettyFormatter:
             if is_dataclass_like_object and self._include_object_field_names:
                 result_items_without_limit.append(str(key))
             else:
-                self._handle_any_obj(key, remaining_line_width=None)
+                result_items_without_limit.append(self._handle_any_obj(key, remaining_line_width=None))
             result_items_without_limit.append(key_value_seperator)
             result_items_without_limit.append(self._handle_any_obj(value, remaining_line_width=None))
 
@@ -159,15 +159,14 @@ class MetricFlowPrettyFormatter:
 
         # Create the string for the key.
         result_lines: List[str] = []
-        if is_dataclass_like_object:
-            if self._include_object_field_names:
-                result_lines.append(str(key) + key_value_seperator)
+        if is_dataclass_like_object and self._include_object_field_names:
+            result_lines.append(str(key) + key_value_seperator)
         else:
             key_lines = self._handle_any_obj(key, remaining_line_width=remaining_line_width).splitlines()
             # Different ways of printing the key / value depending on whether the key fits on one line or requires
             # multiple.
             if len(key_lines) == 1:
-                result_lines.extend(key_lines)
+                result_lines.append(key_lines[0] + key_value_seperator)
             else:
                 # The key needs to be printed in multiple lines. In that case, we want a result where the key value
                 # separator is on the last line with the key. e.g.
@@ -182,7 +181,7 @@ class MetricFlowPrettyFormatter:
 
         # Create the string for the values.
         value_lines = self._handle_any_obj(
-            value, remaining_line_width=max(0, remaining_line_width - len(self._indent_prefix))
+            value, remaining_line_width=max(0, remaining_line_width - len(result_lines[-1]))
         ).splitlines()
 
         # Combine key and value.
@@ -205,7 +204,7 @@ class MetricFlowPrettyFormatter:
             result_lines[-1] = result_lines[-1] + value_lines[0]
             result_lines.extend(value_lines[1:])
         else:
-            result_lines.append(value_lines[0])
+            result_lines[-1] = result_lines[-1] + value_lines[0]
 
         return indent_log_line("\n".join(result_lines), indent_prefix=self._indent_prefix)
 
@@ -238,6 +237,9 @@ class MetricFlowPrettyFormatter:
         Returns:
             A string representation of the mapping. e.g. "{'a'=[1, 2]}" or "Foo(a=[1, 2])".
         """
+        assert (
+            len(left_enclose_str) == 1
+        ), "The left_enclose_str must be 1, or else the width calculations need to be adjusted"
         # Skip key / values depending on the pretty-print configuration.
         if is_dataclass_like_object and not self._include_none_object_fields:
             mapping = {key: value for key, value in mapping.items() if value is not None}
@@ -256,8 +258,6 @@ class MetricFlowPrettyFormatter:
         if remaining_line_width is None or remaining_line_width > 0:
             comma_separated_items: List[str] = []
             for key, value in mapping.items():
-                if is_dataclass_like_object and not self._include_none_object_fields and value is None:
-                    continue
                 key_value_str_items: List[str] = []
 
                 if is_dataclass_like_object:
@@ -283,7 +283,12 @@ class MetricFlowPrettyFormatter:
                     value=value,
                     key_value_seperator=key_value_seperator,
                     is_dataclass_like_object=is_dataclass_like_object,
-                    remaining_line_width=remaining_line_width,
+                    remaining_line_width=(
+                        remaining_line_width
+                        - len(self._indent_prefix)
+                        - len(key_value_seperator)
+                        - len(left_enclose_str)
+                    ),
                 )
             )
         lines = [left_enclose_str, ",\n".join(mapping_items_as_str) + ",", right_enclose_str]

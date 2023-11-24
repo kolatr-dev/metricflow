@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Sized, Tuple
 
 from typing_extensions import override
 
@@ -10,7 +10,9 @@ from metricflow.collection_helpers.pretty_print import mf_pformat
 from metricflow.query.group_by_item.resolution_dag import GroupByItemResolutionDag
 from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import FilterSpecResolutionLookUp
 from metricflow.query.issues.issues_base import MetricFlowQueryResolutionIssueSet
-from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import (
+    MetricFlowQueryResolverInput,
+)
 from metricflow.specs.specs import MetricFlowQuerySpec
 
 
@@ -21,12 +23,12 @@ class InputToIssueSetMappingItem:
 
 
 @dataclass(frozen=True)
-class InputToIssueSetMapping(Mergeable):
+class InputToIssueSetMapping(Mergeable, Sized):
     items: Tuple[InputToIssueSetMappingItem, ...]
 
     @property
-    def has_errors(self) -> bool:
-        return any(item.issue_set.has_errors for item in self.items)
+    def has_issues(self) -> bool:
+        return any(item.issue_set.has_issues for item in self.items)
 
     @property
     def merged_issue_set(self) -> MetricFlowQueryResolutionIssueSet:
@@ -42,6 +44,18 @@ class InputToIssueSetMapping(Mergeable):
             items=(),
         )
 
+    @staticmethod
+    def from_one_item(
+        resolver_input: MetricFlowQueryResolverInput, issue_set: MetricFlowQueryResolutionIssueSet
+    ) -> InputToIssueSetMapping:
+        return InputToIssueSetMapping(
+            items=(InputToIssueSetMappingItem(resolver_input=resolver_input, issue_set=issue_set),)
+        )
+
+    @override
+    def __len__(self) -> int:
+        return len(self.items)
+
 
 @dataclass(frozen=True)
 class MetricFlowQueryResolution:
@@ -50,16 +64,16 @@ class MetricFlowQueryResolution:
     # Can be None if there were errors.
     query_spec: Optional[MetricFlowQuerySpec]
     resolution_dag: Optional[GroupByItemResolutionDag]
-    where_filter_resolved_spec_lookup: FilterSpecResolutionLookUp
+    filter_spec_lookup: FilterSpecResolutionLookUp
     input_to_issue_set: InputToIssueSetMapping
 
     @property
     def checked_query_spec(self) -> MetricFlowQuerySpec:
         """Returns the query_spec, but if MetricFlowQueryResolution.has_errors was True, raise a RuntimeError."""
-        if self.input_to_issue_set.has_errors:
+        if self.input_to_issue_set.has_issues:
             raise RuntimeError(
                 f"Can't get the query spec because errors were present in the resolution:\n"
-                f"{mf_pformat(self.input_to_issue_set.has_errors)}"
+                f"{mf_pformat(self.input_to_issue_set.has_issues)}"
             )
         if self.query_spec is None:
             raise RuntimeError("If there were no errors, query_spec should have been populated.")
@@ -67,7 +81,7 @@ class MetricFlowQueryResolution:
 
     @property
     def has_errors(self) -> bool:  # noqa: D
-        return self.input_to_issue_set.has_errors
+        return self.input_to_issue_set.has_issues or self.filter_spec_lookup.issue_set.has_errors
 
 
 # @dataclass(frozen=True)

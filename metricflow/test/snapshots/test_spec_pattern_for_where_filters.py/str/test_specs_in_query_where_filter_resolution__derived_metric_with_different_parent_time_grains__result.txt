@@ -1,11 +1,13 @@
-ResolvedSpecLookup(
+FilterSpecResolutionLookUp(
   issue_set=MetricFlowQueryResolutionIssueSet(
     issues=(
       NoCommonItemsInParents(
         issue_type=ERROR,
         query_resolution_path=MetricFlowQueryResolutionPath(
-          resolution_path_nodes=
-          (QueryGroupByItemResolutionNode(node_id=qr_5), MetricGroupByItemResolutionNode(node_id=mtr_10)),
+          resolution_path_nodes=(
+            QueryGroupByItemResolutionNode(node_id=qr_5),
+            MetricGroupByItemResolutionNode(node_id=mtr_10),
+          ),
         ),
         parent_candidate_sets=(
           GroupByItemCandidateSet(
@@ -29,7 +31,9 @@ ResolvedSpecLookup(
             ),
           ),
           GroupByItemCandidateSet(
-            specs=(TimeDimensionSpec(element_name='metric_time', time_granularity=MONTH),),
+            specs=(
+              TimeDimensionSpec(element_name='metric_time', time_granularity=MONTH),
+            ),
             measure_paths=(
               MetricFlowQueryResolutionPath(
                 resolution_path_nodes=(

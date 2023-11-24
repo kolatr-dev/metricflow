@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Sequence, Tuple
+from typing import Sequence, Tuple
 
 from typing_extensions import override
 
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryIssueType,
     MetricFlowQueryResolutionIssue,
-    MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput, ResolverInputForGroupBy
+from metricflow.query.resolver_inputs.query_resolver_inputs import (
+    MetricFlowQueryResolverInput,
+    ResolverInputForGroupByItem,
+)
 from metricflow.specs.specs import LinkableInstanceSpec
 
 
@@ -19,13 +22,13 @@ from metricflow.specs.specs import LinkableInstanceSpec
 class InvalidGroupByItemIssue(MetricFlowQueryResolutionIssue):
     """Describes when a metric specified as an input to a query does not match any of the known metrics."""
 
-    group_by_item_input: ResolverInputForGroupBy
+    group_by_item_input: ResolverInputForGroupByItem
     possible_group_by_item_specs: Tuple[LinkableInstanceSpec, ...]
 
     @staticmethod
     def create(  # noqa: D
         parent_issues: Sequence[MetricFlowQueryResolutionIssue],
-        group_by_item_input: ResolverInputForGroupBy,
+        group_by_item_input: ResolverInputForGroupByItem,
         possible_group_by_item_specs: Sequence[LinkableInstanceSpec],
         query_resolution_path: MetricFlowQueryResolutionPath,
     ) -> InvalidGroupByItemIssue:
@@ -38,8 +41,8 @@ class InvalidGroupByItemIssue(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
-        # TODO: Improve message.
+    def ui_description(self, associated_input: MetricFlowQueryResolverInput) -> str:
+        # TODO: Improve message with suggestions.
         return f"{self.group_by_item_input} is not a valid group by item for the query."
 
     @override

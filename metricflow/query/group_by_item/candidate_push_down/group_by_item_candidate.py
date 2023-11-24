@@ -8,7 +8,7 @@ from typing_extensions import override
 
 from metricflow.query.group_by_item.path_prefixable import PathPrefixable
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
-from metricflow.query.issues.issues_base import MetricFlowQueryResolutionPath
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.specs.patterns.spec_pattern import SpecPattern
 from metricflow.specs.specs import InstanceSpecSet, LinkableInstanceSpec, LinkableSpecSet
 

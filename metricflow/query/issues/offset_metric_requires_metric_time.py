@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Sequence, Tuple
+from typing import Sequence, Tuple
 
 from dbt_semantic_interfaces.naming.keywords import METRIC_TIME_ELEMENT_NAME
 from dbt_semantic_interfaces.protocols import MetricInput
@@ -9,12 +9,12 @@ from dbt_semantic_interfaces.references import MetricReference
 from typing_extensions import override
 
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryIssueType,
     MetricFlowQueryResolutionIssue,
-    MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
 
 
 @dataclass(frozen=True)
@@ -23,7 +23,7 @@ class OffsetMetricRequiresMetricTimeIssue(MetricFlowQueryResolutionIssue):
     input_metrics: Tuple[MetricInput, ...]
 
     @override
-    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
+    def ui_description(self, associated_input: MetricFlowQueryResolverInput) -> str:
         return (
             f"The query includes a metric {repr(self.metric_reference.element_name)} that specifies a time offset in "
             f"input metrics: {repr(self.input_metrics)}. However, group-by-items do not include "

@@ -1,1 +1,1 @@
-ResolvedSpecLookup(issue_set=MetricFlowQueryResolutionIssueSet())
+FilterSpecResolutionLookUp()

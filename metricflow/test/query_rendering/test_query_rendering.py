@@ -103,7 +103,7 @@ def test_filter_with_where_constraint_on_join_dim(
     """Tests converting a dataflow plan to a SQL query plan where there is a join between 1 measure and 2 dimensions."""
     query_spec = query_parser.parse_and_validate_query(
         metric_names=("bookings",),
-        group_by_names=("is_instant",),
+        group_by_names=("booking__is_instant",),
         where_constraint=PydanticWhereFilter(
             where_sql_template="{{ Dimension('listing__country_latest') }} = 'us'",
         ),
@@ -244,16 +244,15 @@ def test_local_dimension_using_local_entity(  # noqa: D
 def test_measure_constraint(  # noqa: D
     request: FixtureRequest,
     mf_test_session_state: MetricFlowTestSessionState,
+    query_parser: MetricFlowQueryParser,
     dataflow_plan_builder: DataflowPlanBuilder,
     dataflow_to_sql_converter: DataflowToSqlQueryPlanConverter,
     sql_client: SqlClient,
 ) -> None:
-    dataflow_plan = dataflow_plan_builder.build_plan(
-        MetricFlowQuerySpec(
-            metric_specs=(MetricSpec(element_name="lux_booking_value_rate_expr"),),
-            time_dimension_specs=(MTD_SPEC_DAY,),
-        )
+    query_spec = query_parser.parse_and_validate_query(
+        metric_names=("lux_booking_value_rate_expr",), group_by_names=(MTD_SPEC_DAY.qualified_name,)
     )
+    dataflow_plan = dataflow_plan_builder.build_plan(query_spec)
 
     convert_and_check(
         request=request,
@@ -268,16 +267,15 @@ def test_measure_constraint(  # noqa: D
 def test_measure_constraint_with_reused_measure(  # noqa: D
     request: FixtureRequest,
     mf_test_session_state: MetricFlowTestSessionState,
+    query_parser: MetricFlowQueryParser,
     dataflow_plan_builder: DataflowPlanBuilder,
     dataflow_to_sql_converter: DataflowToSqlQueryPlanConverter,
     sql_client: SqlClient,
 ) -> None:
-    dataflow_plan = dataflow_plan_builder.build_plan(
-        MetricFlowQuerySpec(
-            metric_specs=(MetricSpec(element_name="instant_booking_value_ratio"),),
-            time_dimension_specs=(MTD_SPEC_DAY,),
-        )
+    query_spec = query_parser.parse_and_validate_query(
+        metric_names=("instant_booking_value_ratio",), group_by_names=(MTD_SPEC_DAY.qualified_name,)
     )
+    dataflow_plan = dataflow_plan_builder.build_plan(query_spec)
 
     convert_and_check(
         request=request,
@@ -292,16 +290,16 @@ def test_measure_constraint_with_reused_measure(  # noqa: D
 def test_measure_constraint_with_single_expr_and_alias(  # noqa: D
     request: FixtureRequest,
     mf_test_session_state: MetricFlowTestSessionState,
+    query_parser: MetricFlowQueryParser,
     dataflow_plan_builder: DataflowPlanBuilder,
     dataflow_to_sql_converter: DataflowToSqlQueryPlanConverter,
     sql_client: SqlClient,
 ) -> None:
-    dataflow_plan = dataflow_plan_builder.build_plan(
-        MetricFlowQuerySpec(
-            metric_specs=(MetricSpec(element_name="double_counted_delayed_bookings"),),
-            time_dimension_specs=(MTD_SPEC_DAY,),
-        )
+    query_spec = query_parser.parse_and_validate_query(
+        metric_names=("double_counted_delayed_bookings",), group_by_names=(MTD_SPEC_DAY.qualified_name,)
     )
+
+    dataflow_plan = dataflow_plan_builder.build_plan(query_spec)
 
     convert_and_check(
         request=request,

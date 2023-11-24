@@ -15,7 +15,7 @@ from metricflow.test.fixtures.setup_fixtures import MetricFlowTestSessionState
 from metricflow.test.snapshot_utils import assert_resolution_dag_snapshot_equal
 
 METRIC_TIME_SPEC_PATTERN = EntityLinkPattern(
-    parameter_set=EntityLinkPatternParameterSet(
+    parameter_set=EntityLinkPatternParameterSet.from_parameters(
         element_name=METRIC_TIME_ELEMENT_NAME,
         entity_links=(),
         time_granularity=None,

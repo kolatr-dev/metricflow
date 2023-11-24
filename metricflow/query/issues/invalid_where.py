@@ -2,19 +2,18 @@ from __future__ import annotations
 
 import traceback
 from dataclasses import dataclass
-from typing import Optional
 
 from dbt_semantic_interfaces.protocols import WhereFilter
 from typing_extensions import override
 
 from metricflow.formatting import indent_log_line
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryIssueType,
     MetricFlowQueryResolutionIssue,
-    MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
 
 
 @dataclass(frozen=True)
@@ -39,7 +38,7 @@ class WhereFilterParsingIssue(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
+    def ui_description(self, associated_input: MetricFlowQueryResolverInput) -> str:
         return (
             f"Error parsing where filter:\n\n"
             f"{indent_log_line(repr(self.where_filter.where_sql_template))}\n\n"

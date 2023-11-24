@@ -7,6 +7,7 @@ from dbt_semantic_interfaces.implementations.elements.dimension import PydanticD
 from dbt_semantic_interfaces.type_enums import DimensionType
 
 from metricflow.collection_helpers.pretty_print import mf_pformat
+from metricflow.formatting import indent_log_line
 from metricflow.test.time.metric_time_dimension import MTD_SPEC_DAY
 
 logger = logging.getLogger(__name__)
@@ -33,15 +34,6 @@ def test_classes() -> None:  # noqa: D
         include_empty_object_fields=False,
     )
 
-    logger.error(
-        "result is:\n"
-        + mf_pformat(
-            MTD_SPEC_DAY,
-            include_object_field_names=True,
-            include_none_object_fields=True,
-            include_empty_object_fields=True,
-        )
-    )
     assert (
         textwrap.dedent(
             """\
@@ -65,28 +57,43 @@ def test_classes() -> None:  # noqa: D
     assert "TimeDimensionSpec(element_name='metric_time', time_granularity=DAY)" == mf_pformat(MTD_SPEC_DAY)
 
 
-def test_multi_line_key_value() -> None:
+def test_multi_line_key_value_dict() -> None:
     """Test a dict where the key and value needs to be printed on multiple lines."""
+    output_lines = []
+    previous_result = None
+    for max_line_length in range(1, 18):
+        result = mf_pformat(obj={(1,): (4, 5, 6)}, max_line_length=max_line_length)
+        if result != previous_result:
+            output_lines.append(f"max_line_length={max_line_length}:")
+            output_lines.append(indent_log_line(result))
+            previous_result = result
+    result = "\n".join(output_lines)
     assert (
         textwrap.dedent(
             """\
-            {
-              (
-                1,
-                2,
-                3,
-              ): (
-                4,
-                5,
-                6,
-              ),
-            }
+            max_line_length=1:
+              {
+                (
+                  1,
+                ): (
+                  4,
+                  5,
+                  6,
+                ),
+              }
+            max_line_length=9:
+              {
+                (1,): (
+                  4,
+                  5,
+                  6,
+                ),
+              }
+            max_line_length=17:
+              {(1,): (4, 5, 6)}
             """
         ).rstrip()
-        == mf_pformat(
-            obj={(1, 2, 3): (4, 5, 6)},
-            max_line_length=1,
-        )
+        == result
     )
 
 

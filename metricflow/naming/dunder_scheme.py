@@ -71,7 +71,7 @@ class DunderNamingScheme(QueryItemNamingScheme):
         # No dunder, e.g. "ds"
         if len(input_str_parts) == 1:
             return EntityLinkPattern(
-                parameter_set=EntityLinkPatternParameterSet(
+                parameter_set=EntityLinkPatternParameterSet.from_parameters(
                     element_name=input_str_parts[0],
                     entity_links=(),
                     time_granularity=time_grain,
@@ -91,7 +91,7 @@ class DunderNamingScheme(QueryItemNamingScheme):
             #  e.g. "ds__month"
             if len(input_str_parts) == 2:
                 return EntityLinkPattern(
-                    parameter_set=EntityLinkPatternParameterSet(
+                    parameter_set=EntityLinkPatternParameterSet.from_parameters(
                         element_name=input_str_parts[0],
                         entity_links=(),
                         time_granularity=time_grain,
@@ -101,7 +101,7 @@ class DunderNamingScheme(QueryItemNamingScheme):
                 )
             # e.g. "messages__ds__month"
             return EntityLinkPattern(
-                parameter_set=EntityLinkPatternParameterSet(
+                parameter_set=EntityLinkPatternParameterSet.from_parameters(
                     element_name=input_str_parts[-2],
                     entity_links=tuple(EntityReference(entity_name) for entity_name in input_str_parts[:-2]),
                     time_granularity=time_grain,
@@ -112,7 +112,7 @@ class DunderNamingScheme(QueryItemNamingScheme):
 
         # e.g. "messages__ds"
         return EntityLinkPattern(
-            parameter_set=EntityLinkPatternParameterSet(
+            parameter_set=EntityLinkPatternParameterSet.from_parameters(
                 element_name=input_str_parts[-1],
                 entity_links=tuple(EntityReference(entity_name) for entity_name in input_str_parts[:-1]),
                 time_granularity=None,

@@ -11,7 +11,7 @@ from metricflow.visitor import Visitable, VisitorOutputT
 
 if TYPE_CHECKING:
     from metricflow.query.group_by_item.resolution_nodes.any_model_resolution_node import (
-        AnyModelGroupByItemResolutionNode,
+        NoMetricsQueryGroupByItemResolutionNode,
     )
     from metricflow.query.group_by_item.resolution_nodes.measure_resolution_node import MeasureGroupByItemResolutionNode
     from metricflow.query.group_by_item.resolution_nodes.metric_resolution_node import MetricGroupByItemResolutionNode
@@ -59,7 +59,7 @@ class GroupByItemResolutionNodeVisitor(Generic[VisitorOutputT], ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def visit_any_model_node(self, node: AnyModelGroupByItemResolutionNode) -> VisitorOutputT:  # noqa: D
+    def visit_any_model_node(self, node: NoMetricsQueryGroupByItemResolutionNode) -> VisitorOutputT:  # noqa: D
         raise NotImplementedError
 
     @abstractmethod

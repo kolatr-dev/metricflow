@@ -1,29 +1,103 @@
-spec:
-    None
-issue_0_description:
-    The given input does not match any of the available group by items for Measure('monthly_measure_0'). Available items:
-    [
-      "TimeDimension('monthly_measure_entity__creation_time', 'month')",
-      "TimeDimension('monthly_measure_entity__creation_time', 'month', date_part_name='year')",
-      "TimeDimension('monthly_measure_entity__creation_time', 'month', date_part_name='quarter')",
-      "TimeDimension('monthly_measure_entity__creation_time', 'month', date_part_name='month')",
-      "TimeDimension('monthly_measure_entity__creation_time', 'quarter')",
-      "TimeDimension('monthly_measure_entity__creation_time', 'quarter', date_part_name='year')",
-      "TimeDimension('monthly_measure_entity__creation_time', 'quarter', date_part_name='quarter')",
-      "TimeDimension('monthly_measure_entity__creation_time', 'year')",
-      "TimeDimension('monthly_measure_entity__creation_time', 'year', date_part_name='year')",
-      "TimeDimension('metric_time', 'month')",
-      "TimeDimension('metric_time', 'month', date_part_name='year')",
-      "TimeDimension('metric_time', 'month', date_part_name='quarter')",
-      "TimeDimension('metric_time', 'month', date_part_name='month')",
-      "TimeDimension('metric_time', 'quarter')",
-      "TimeDimension('metric_time', 'quarter', date_part_name='year')",
-      "TimeDimension('metric_time', 'quarter', date_part_name='quarter')",
-      "TimeDimension('metric_time', 'year')",
-      "TimeDimension('metric_time', 'year', date_part_name='year')",
-    ]
-issue_0_location:
-    [Resolve Query(['derived_metric_with_different_parent_time_grains'])]
-      -> [Resolve Metric('derived_metric_with_different_parent_time_grains')]
-        -> [Resolve Metric('monthly_metric_0')]
-          -> [Resolve Measure('monthly_measure_0')]
+GroupByItemResolution(
+  issue_set=MetricFlowQueryResolutionIssueSet(
+    issues=(
+      NoMatchingGroupByItemsAtRoot(
+        issue_type=ERROR,
+        query_resolution_path=MetricFlowQueryResolutionPath(
+          resolution_path_nodes=(
+            QueryGroupByItemResolutionNode(node_id=qr_5),
+            MetricGroupByItemResolutionNode(node_id=mtr_10),
+            MetricGroupByItemResolutionNode(node_id=mtr_9),
+            MeasureGroupByItemResolutionNode(node_id=msr_8),
+          ),
+        ),
+        candidate_specs=(
+          TimeDimensionSpec(
+            element_name='creation_time',
+            entity_links=(EntityReference(element_name='monthly_measure_entity'),),
+            time_granularity=MONTH,
+          ),
+          TimeDimensionSpec(
+            element_name='creation_time',
+            entity_links=(EntityReference(element_name='monthly_measure_entity'),),
+            time_granularity=MONTH,
+            date_part=YEAR,
+          ),
+          TimeDimensionSpec(
+            element_name='creation_time',
+            entity_links=(EntityReference(element_name='monthly_measure_entity'),),
+            time_granularity=MONTH,
+            date_part=QUARTER,
+          ),
+          TimeDimensionSpec(
+            element_name='creation_time',
+            entity_links=(EntityReference(element_name='monthly_measure_entity'),),
+            time_granularity=MONTH,
+            date_part=MONTH,
+          ),
+          TimeDimensionSpec(
+            element_name='creation_time',
+            entity_links=(EntityReference(element_name='monthly_measure_entity'),),
+            time_granularity=QUARTER,
+          ),
+          TimeDimensionSpec(
+            element_name='creation_time',
+            entity_links=(EntityReference(element_name='monthly_measure_entity'),),
+            time_granularity=QUARTER,
+            date_part=YEAR,
+          ),
+          TimeDimensionSpec(
+            element_name='creation_time',
+            entity_links=(EntityReference(element_name='monthly_measure_entity'),),
+            time_granularity=QUARTER,
+            date_part=QUARTER,
+          ),
+          TimeDimensionSpec(
+            element_name='creation_time',
+            entity_links=(EntityReference(element_name='monthly_measure_entity'),),
+            time_granularity=YEAR,
+          ),
+          TimeDimensionSpec(
+            element_name='creation_time',
+            entity_links=(EntityReference(element_name='monthly_measure_entity'),),
+            time_granularity=YEAR,
+            date_part=YEAR,
+          ),
+          TimeDimensionSpec(element_name='metric_time', time_granularity=MONTH),
+          TimeDimensionSpec(
+            element_name='metric_time',
+            time_granularity=MONTH,
+            date_part=YEAR,
+          ),
+          TimeDimensionSpec(
+            element_name='metric_time',
+            time_granularity=MONTH,
+            date_part=QUARTER,
+          ),
+          TimeDimensionSpec(
+            element_name='metric_time',
+            time_granularity=MONTH,
+            date_part=MONTH,
+          ),
+          TimeDimensionSpec(element_name='metric_time', time_granularity=QUARTER),
+          TimeDimensionSpec(
+            element_name='metric_time',
+            time_granularity=QUARTER,
+            date_part=YEAR,
+          ),
+          TimeDimensionSpec(
+            element_name='metric_time',
+            time_granularity=QUARTER,
+            date_part=QUARTER,
+          ),
+          TimeDimensionSpec(element_name='metric_time', time_granularity=YEAR),
+          TimeDimensionSpec(
+            element_name='metric_time',
+            time_granularity=YEAR,
+            date_part=YEAR,
+          ),
+        ),
+      ),
+    ),
+  ),
+)

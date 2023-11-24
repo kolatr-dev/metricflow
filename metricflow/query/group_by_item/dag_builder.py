@@ -9,7 +9,9 @@ from dbt_semantic_interfaces.references import MetricReference
 
 from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
 from metricflow.query.group_by_item.resolution_dag import GroupByItemResolutionDag
-from metricflow.query.group_by_item.resolution_nodes.any_model_resolution_node import AnyModelGroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_nodes.any_model_resolution_node import (
+    NoMetricsQueryGroupByItemResolutionNode,
+)
 from metricflow.query.group_by_item.resolution_nodes.measure_resolution_node import MeasureGroupByItemResolutionNode
 from metricflow.query.group_by_item.resolution_nodes.metric_resolution_node import MetricGroupByItemResolutionNode
 from metricflow.query.group_by_item.resolution_nodes.query_resolution_node import QueryGroupByItemResolutionNode
@@ -71,7 +73,7 @@ class GroupByItemResolutionDagBuilder:
     ) -> QueryGroupByItemResolutionNode:
         if len(metric_references) == 0:
             return QueryGroupByItemResolutionNode(
-                parent_nodes=(AnyModelGroupByItemResolutionNode(),),
+                parent_nodes=(NoMetricsQueryGroupByItemResolutionNode(),),
                 metrics_in_query=metric_references,
                 where_filter_intersection=where_filter_intersection,
             )

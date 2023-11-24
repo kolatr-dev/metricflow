@@ -22,13 +22,14 @@ from dbt_semantic_interfaces.references import (
 from dbt_semantic_interfaces.type_enums.date_part import DatePart
 from dbt_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import (
     CallParameterSet,
     FilterSpecResolutionLookUp,
     ResolvedSpecLookUpKey,
     WhereFilterSpecResolution,
 )
-from metricflow.query.issues.issues_base import MetricFlowQueryResolutionIssueSet, MetricFlowQueryResolutionPath
+from metricflow.query.issues.issues_base import MetricFlowQueryResolutionIssueSet
 from metricflow.specs.column_assoc import ColumnAssociationResolver
 from metricflow.specs.specs import (
     DimensionSpec,

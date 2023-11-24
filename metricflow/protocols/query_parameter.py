@@ -7,9 +7,9 @@ from dbt_semantic_interfaces.type_enums.date_part import DatePart
 
 if TYPE_CHECKING:
     from metricflow.query.resolver_inputs.query_resolver_inputs import (
-        ResolverInputForGroupBy,
+        ResolverInputForGroupByItem,
         ResolverInputForMetric,
-        ResolverInputForOrderBy,
+        ResolverInputForOrderByItem,
     )
 
 
@@ -37,7 +37,7 @@ class DimensionOrEntityQueryParameter(Protocol):
         raise NotImplementedError
 
     @property
-    def query_resolver_input(self) -> ResolverInputForGroupBy:
+    def query_resolver_input(self) -> ResolverInputForGroupByItem:
         raise NotImplementedError
 
 
@@ -59,7 +59,7 @@ class TimeDimensionQueryParameter(Protocol):  # noqa: D
         raise NotImplementedError
 
     @property
-    def query_resolver_input(self) -> ResolverInputForGroupBy:
+    def query_resolver_input(self) -> ResolverInputForGroupByItem:
         raise NotImplementedError
 
 
@@ -81,7 +81,7 @@ class OrderByQueryParameter(Protocol):
         raise NotImplementedError
 
     @property
-    def query_resolver_input(self) -> ResolverInputForOrderBy:
+    def query_resolver_input(self) -> ResolverInputForOrderByItem:
         raise NotImplementedError
 
 

@@ -8,7 +8,9 @@ from typing_extensions import override
 
 from metricflow.dag.id_prefix import IdPrefix
 from metricflow.dag.mf_dag import DisplayedProperty
-from metricflow.query.group_by_item.resolution_nodes.any_model_resolution_node import AnyModelGroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_nodes.any_model_resolution_node import (
+    NoMetricsQueryGroupByItemResolutionNode,
+)
 from metricflow.query.group_by_item.resolution_nodes.base_node import (
     GroupByItemResolutionNode,
     GroupByItemResolutionNodeVisitor,
@@ -20,7 +22,7 @@ from metricflow.visitor import VisitorOutputT
 class QueryGroupByItemResolutionNode(GroupByItemResolutionNode):
     def __init__(
         self,
-        parent_nodes: Sequence[Union[MetricGroupByItemResolutionNode, AnyModelGroupByItemResolutionNode]],
+        parent_nodes: Sequence[Union[MetricGroupByItemResolutionNode, NoMetricsQueryGroupByItemResolutionNode]],
         metrics_in_query: Sequence[MetricReference],
         where_filter_intersection: WhereFilterIntersection,
     ) -> None:
@@ -40,7 +42,7 @@ class QueryGroupByItemResolutionNode(GroupByItemResolutionNode):
 
     @property
     @override
-    def parent_nodes(self) -> Sequence[Union[MetricGroupByItemResolutionNode, AnyModelGroupByItemResolutionNode]]:
+    def parent_nodes(self) -> Sequence[Union[MetricGroupByItemResolutionNode, NoMetricsQueryGroupByItemResolutionNode]]:
         return self._parent_nodes
 
     @classmethod

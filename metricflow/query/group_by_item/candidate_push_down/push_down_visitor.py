@@ -14,7 +14,9 @@ from metricflow.formatting import indent_log_line
 from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
 from metricflow.model.semantics.linkable_element_properties import LinkableElementProperties
 from metricflow.query.group_by_item.candidate_push_down.group_by_item_candidate import GroupByItemCandidateSet
-from metricflow.query.group_by_item.resolution_nodes.any_model_resolution_node import AnyModelGroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_nodes.any_model_resolution_node import (
+    NoMetricsQueryGroupByItemResolutionNode,
+)
 from metricflow.query.group_by_item.resolution_nodes.base_node import (
     GroupByItemResolutionNode,
     GroupByItemResolutionNodeVisitor,
@@ -22,9 +24,9 @@ from metricflow.query.group_by_item.resolution_nodes.base_node import (
 from metricflow.query.group_by_item.resolution_nodes.measure_resolution_node import MeasureGroupByItemResolutionNode
 from metricflow.query.group_by_item.resolution_nodes.metric_resolution_node import MetricGroupByItemResolutionNode
 from metricflow.query.group_by_item.resolution_nodes.query_resolution_node import QueryGroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssueSet,
-    MetricFlowQueryResolutionPath,
 )
 from metricflow.query.issues.no_common import NoCommonItemsInParents
 from metricflow.query.issues.no_matching_at_root import NoMatchingGroupByItemsAtRoot
@@ -305,15 +307,16 @@ class _PushDownGroupByItemCandidatesVisitor(GroupByItemResolutionNodeVisitor[Pus
             return merged_result_from_parents
 
     @override
-    def visit_any_model_node(self, node: AnyModelGroupByItemResolutionNode) -> PushDownResult:
+    def visit_any_model_node(self, node: NoMetricsQueryGroupByItemResolutionNode) -> PushDownResult:
         with self._path_from_start_node_tracker.track_node_visit(node) as current_traversal_path:
             logger.info(f"Handling {node.ui_description}")
             # This is a case for distinct dimension values from semantic models.
             candidate_specs = self._semantic_manifest_lookup.metric_lookup.group_by_item_specs_for_no_metrics_query()
+
+            # TODO: Remove)
             matching_specs = candidate_specs
             for pattern_to_apply in self._source_spec_patterns:
                 matching_specs = InstanceSpecSet.from_specs(pattern_to_apply.match(matching_specs)).linkable_specs
-
             if len(matching_specs) == 0:
                 return PushDownResult(
                     candidate_set=GroupByItemCandidateSet.empty_instance(),

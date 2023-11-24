@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from dbt_semantic_interfaces.call_parameter_sets import (
     DimensionCallParameterSet,
@@ -23,7 +23,9 @@ from metricflow.query.group_by_item.candidate_push_down.push_down_visitor import
 from metricflow.query.group_by_item.group_by_item_resolver import GroupByItemResolver
 from metricflow.query.group_by_item.path_prefixable import PathPrefixable
 from metricflow.query.group_by_item.resolution_dag import GroupByItemResolutionDag, ResolutionDagSinkNode
-from metricflow.query.group_by_item.resolution_nodes.any_model_resolution_node import AnyModelGroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_nodes.any_model_resolution_node import (
+    NoMetricsQueryGroupByItemResolutionNode,
+)
 from metricflow.query.group_by_item.resolution_nodes.base_node import (
     GroupByItemResolutionNode,
     GroupByItemResolutionNodeVisitor,
@@ -31,10 +33,10 @@ from metricflow.query.group_by_item.resolution_nodes.base_node import (
 from metricflow.query.group_by_item.resolution_nodes.measure_resolution_node import MeasureGroupByItemResolutionNode
 from metricflow.query.group_by_item.resolution_nodes.metric_resolution_node import MetricGroupByItemResolutionNode
 from metricflow.query.group_by_item.resolution_nodes.query_resolution_node import QueryGroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.issues.invalid_where import WhereFilterParsingIssue
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssueSet,
-    MetricFlowQueryResolutionPath,
 )
 from metricflow.specs.patterns.entity_link_pattern import (
     DimensionPattern,
@@ -131,9 +133,18 @@ class FilterSpecResolutionLookUp(Mergeable, PathPrefixable):
 
     def checked_resolved_spec(self, resolved_spec_lookup_key: ResolvedSpecLookUpKey) -> LinkableInstanceSpec:
         resolutions = self.get_spec_resolutions(resolved_spec_lookup_key)
-        if len(resolutions) != 1:
+        if len(resolutions) == 0:
             raise RuntimeError(
                 f"Unable to find a resolved spec.\n\n"
+                f"Expected 1 resolution for:\n\n"
+                f"{indent_log_line(mf_pformat(resolved_spec_lookup_key))}\n\n"
+                f"but did not find any. All resolutions are:\n\n"
+                f"{indent_log_line(mf_pformat(self.spec_resolutions))}"
+            )
+
+        if len(resolutions) > 1:
+            logger.error(
+                f"Got multiple resolved specs. This is a bug, but going forward with the first one.\n\n"
                 f"Expected 1 resolution for:\n\n"
                 f"{indent_log_line(mf_pformat(resolved_spec_lookup_key))}\n\n"
                 f"but got:\n\n"
@@ -176,6 +187,18 @@ class FilterSpecResolutionLookUp(Mergeable, PathPrefixable):
             ),
             issue_set=self.issue_set.with_path_prefix(path_prefix_node),
         )
+
+    def dedupe(self) -> FilterSpecResolutionLookUp:
+        deduped_spec_resolutions: List[WhereFilterSpecResolution] = []
+        deduped_lookup_keys: Set[ResolvedSpecLookUpKey] = set()
+        for spec_resolution in self.spec_resolutions:
+            if spec_resolution.lookup_key in deduped_lookup_keys:
+                continue
+
+            deduped_spec_resolutions.append(spec_resolution)
+            deduped_lookup_keys.add(spec_resolution.lookup_key)
+
+        return FilterSpecResolutionLookUp(spec_resolutions=tuple(deduped_spec_resolutions), issue_set=self.issue_set)
 
 
 class _ResolveWhereFilterSpecVisitor(GroupByItemResolutionNodeVisitor[FilterSpecResolutionLookUp]):
@@ -250,8 +273,11 @@ class _ResolveWhereFilterSpecVisitor(GroupByItemResolutionNodeVisitor[FilterSpec
         with self._path_from_start_node_tracker.track_node_visit(node) as resolution_path:
             results_to_merge: List[FilterSpecResolutionLookUp] = []
             for parent_node in node.parent_nodes:
-                results_to_merge.append(parent_node.accept(self).with_path_prefix(node))
-            resolved_spec_lookup_so_far = FilterSpecResolutionLookUp.merge_iterable(results_to_merge)
+                results_to_merge.append(parent_node.accept(self))
+
+            # Need to dedupe as it's possible that the same metric with the same filter is used multiple times to
+            # define a derived metric.
+            resolved_spec_lookup_so_far = FilterSpecResolutionLookUp.merge_iterable(results_to_merge).dedupe()
 
             return resolved_spec_lookup_so_far.merge(
                 self._resolve_resolutions_for_where_filters(
@@ -268,7 +294,9 @@ class _ResolveWhereFilterSpecVisitor(GroupByItemResolutionNodeVisitor[FilterSpec
         with self._path_from_start_node_tracker.track_node_visit(node) as resolution_path:
             results_to_merge: List[FilterSpecResolutionLookUp] = []
             for parent_node in node.parent_nodes:
-                results_to_merge.append(parent_node.accept(self).with_path_prefix(node))
+                results_to_merge.append(parent_node.accept(self))
+
+            # If the same metric is present multiple times in a query - there could be duplicates.
             resolved_spec_lookup_so_far = FilterSpecResolutionLookUp.merge_iterable(results_to_merge)
 
             return resolved_spec_lookup_so_far.merge(
@@ -282,7 +310,7 @@ class _ResolveWhereFilterSpecVisitor(GroupByItemResolutionNodeVisitor[FilterSpec
             )
 
     @override
-    def visit_any_model_node(self, node: AnyModelGroupByItemResolutionNode) -> FilterSpecResolutionLookUp:
+    def visit_any_model_node(self, node: NoMetricsQueryGroupByItemResolutionNode) -> FilterSpecResolutionLookUp:
         with self._path_from_start_node_tracker.track_node_visit(node):
             return FilterSpecResolutionLookUp.empty_instance()
 

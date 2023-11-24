@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from dbt_semantic_interfaces.references import MetricReference
 
@@ -13,6 +13,7 @@ from metricflow.query.group_by_item.dag_builder import GroupByItemResolutionDagB
 from metricflow.query.group_by_item.group_by_item_resolver import GroupByItemResolution, GroupByItemResolver
 from metricflow.query.group_by_item.resolution_dag import GroupByItemResolutionDag
 from metricflow.query.group_by_item.resolution_nodes.query_resolution_node import QueryGroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.group_by_item.resolve_filters.filter_to_pattern import (
     FilterSpecResolutionLookUp,
     WhereFilterSpecResolver,
@@ -22,7 +23,6 @@ from metricflow.query.issues.invalid_metric import InvalidMetricIssue
 from metricflow.query.issues.invalid_order import InvalidOrderByItemIssue
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssueSet,
-    MetricFlowQueryResolutionPath,
 )
 from metricflow.query.query_resolution import (
     InputToIssueSetMapping,
@@ -30,11 +30,12 @@ from metricflow.query.query_resolution import (
     MetricFlowQueryResolution,
 )
 from metricflow.query.resolver_inputs.query_resolver_inputs import (
-    ResolverInputForGroupBy,
+    ResolverInputForGroupByItem,
     ResolverInputForLimit,
     ResolverInputForMetric,
-    ResolverInputForOrderBy,
-    ResolverInputForQuery, ResolverInputForWhereFilterIntersection,
+    ResolverInputForOrderByItem,
+    ResolverInputForQuery,
+    ResolverInputForWhereFilterIntersection,
 )
 from metricflow.query.validation_rules.query_validator import PostResolutionQueryValidator
 from metricflow.specs.specs import (
@@ -82,7 +83,7 @@ class MetricFlowQueryResolver:
         )
 
     def _resolve_group_by_item_input(
-        self, resolution_dag: GroupByItemResolutionDag, group_by_item_input: ResolverInputForGroupBy
+        self, resolution_dag: GroupByItemResolutionDag, group_by_item_input: ResolverInputForGroupByItem
     ) -> GroupByItemResolution:
         group_by_item_resolver = GroupByItemResolver(
             manifest_lookup=self._manifest_lookup,
@@ -98,16 +99,15 @@ class MetricFlowQueryResolver:
         metric_inputs: Sequence[ResolverInputForMetric],
         query_resolution_path: MetricFlowQueryResolutionPath,
     ) -> ResolveMetricsResult:
-
         all_metric_specs = tuple(
             MetricSpec.from_reference(metric_reference)
             for metric_reference in self._manifest_lookup.metric_lookup.metric_references
         )
         metric_specs: List[MetricSpec] = []
-        input_to_issue_set_mapping_items: List[MetricFlowQueryResolutionIssueSet] = []
+        input_to_issue_set_mapping_items: List[InputToIssueSetMappingItem] = []
+
         for metric_input in metric_inputs:
             matching_specs = metric_input.spec_pattern.match(all_metric_specs)
-
             if len(matching_specs) != 1:
                 input_to_issue_set_mapping_items.append(
                     InputToIssueSetMappingItem(
@@ -117,7 +117,7 @@ class MetricFlowQueryResolver:
                                 candidate_metric_references=self._manifest_lookup.metric_lookup.metric_references,
                                 query_resolution_path=query_resolution_path,
                             )
-                        )
+                        ),
                     )
                 )
             else:
@@ -125,13 +125,13 @@ class MetricFlowQueryResolver:
 
         return ResolveMetricsResult(
             metric_specs=tuple(metric_specs),
-            input_to_issue_set_mapping=InputToIssueSetMapping(items=tuple(input_to_issue_set_mapping_items))
+            input_to_issue_set_mapping=InputToIssueSetMapping(items=tuple(input_to_issue_set_mapping_items)),
         )
 
     def _resolve_group_by_items_result(
         self,
         metric_references: Sequence[MetricReference],
-        group_by_item_inputs: Sequence[ResolverInputForGroupBy],
+        group_by_item_inputs: Sequence[ResolverInputForGroupByItem],
         filter_input: ResolverInputForWhereFilterIntersection,
     ) -> ResolveGroupByItemsResult:
         resolution_dag_builder = GroupByItemResolutionDagBuilder(
@@ -159,20 +159,19 @@ class MetricFlowQueryResolver:
         return ResolveGroupByItemsResult(
             resolution_dag=resolution_dag,
             group_by_item_specs=tuple(group_by_item_specs),
-            input_to_issue_set_mapping=InputToIssueSetMapping.merge_iterable(input_to_issue_set_mapping_items)
+            input_to_issue_set_mapping=InputToIssueSetMapping(tuple(input_to_issue_set_mapping_items)),
         )
 
     def _resolve_order_by(
         self,
-        resolver_inputs_for_order_by: Sequence[ResolverInputForOrderBy],
+        resolver_inputs_for_order_by_items: Sequence[ResolverInputForOrderByItem],
         metric_specs: Sequence[MetricSpec],
         group_by_item_specs: Sequence[LinkableInstanceSpec],
         query_resolution_path: MetricFlowQueryResolutionPath,
     ) -> ResolveOrderByResult:
-
         mapping_items: List[InputToIssueSetMappingItem] = []
         order_by_specs: List[OrderBySpec] = []
-        for resolver_input_for_order_by in resolver_inputs_for_order_by:
+        for resolver_input_for_order_by in resolver_inputs_for_order_by_items:
             matching_specs: List[InstanceSpec] = []
             for possible_input in resolver_input_for_order_by.possible_inputs:
                 spec_pattern = possible_input.spec_pattern
@@ -192,7 +191,12 @@ class MetricFlowQueryResolver:
                     )
                 )
             else:
-                order_by_specs.append(matching_specs[0])
+                order_by_specs.append(
+                    OrderBySpec(
+                        instance_spec=matching_specs[0],
+                        descending=resolver_input_for_order_by.descending,
+                    )
+                )
 
         return ResolveOrderByResult(
             input_to_issue_set_mapping=InputToIssueSetMapping(items=tuple(mapping_items)),
@@ -205,10 +209,16 @@ class MetricFlowQueryResolver:
     ) -> ResolveLimitResult:
         limit = limit_input.limit
         if limit is not None and limit < 0:
-            return MetricFlowQueryResolutionIssueSet.from_issue(
-                InvalidLimitIssue.from_parameters(limit=limit, query_resolution_path=query_resolution_path),
+            return ResolveLimitResult(
+                limit=limit,
+                input_to_issue_set_mapping=InputToIssueSetMapping.from_one_item(
+                    resolver_input=limit_input,
+                    issue_set=MetricFlowQueryResolutionIssueSet.from_issue(
+                        InvalidLimitIssue.from_parameters(limit=limit, query_resolution_path=query_resolution_path),
+                    ),
+                ),
             )
-        return MetricFlowQueryResolutionIssueSet.empty_instance()
+        return ResolveLimitResult(limit=limit, input_to_issue_set_mapping=InputToIssueSetMapping.empty_instance())
 
     def _resolve_where(
         self,
@@ -290,16 +300,15 @@ class MetricFlowQueryResolver:
             limit_input=limit_input,
             query_resolution_path=query_resolution_path,
         )
-        limit = resolve_limit_result.limit
+        mappings_to_merge.append(resolve_limit_result.input_to_issue_set_mapping)
 
-        # Early stop before resolving further as with invalid metrics, it's difficult to do a good validation.
-        # Also including any issues with the order by doesn't hurt.
+        # Early stop before resolving further as with invalid metrics, the errors won't be as useful.
         issue_set_mapping_so_far = InputToIssueSetMapping.merge_iterable(mappings_to_merge)
-        if issue_set_mapping_so_far.has_errors:
+        if issue_set_mapping_so_far.has_issues:
             return MetricFlowQueryResolution(
                 query_spec=None,
                 resolution_dag=None,
-                where_filter_resolved_spec_lookup=FilterSpecResolutionLookUp.empty_instance(),
+                filter_spec_lookup=FilterSpecResolutionLookUp.empty_instance(),
                 input_to_issue_set=issue_set_mapping_so_far,
             )
 
@@ -315,35 +324,35 @@ class MetricFlowQueryResolver:
 
         # Resolve order by.
         resolve_order_by_result = self._resolve_order_by(
-            resolver_inputs_for_order_by=order_by_item_inputs,
+            resolver_inputs_for_order_by_items=order_by_item_inputs,
             metric_specs=metric_specs,
             group_by_item_specs=group_by_item_specs,
             query_resolution_path=query_resolution_path,
         )
         order_by_specs = resolve_order_by_result.order_by_specs
-        mappings_to_merge.append(resolve_group_by_item_result.input_to_issue_set_mapping)
+        if resolve_order_by_result.input_to_issue_set_mapping.has_issues:
+            mappings_to_merge.append(resolve_order_by_result.input_to_issue_set_mapping)
 
         # Resolve where.
-        resolved_spec_lookup = self._resolve_where(
+        filter_spec_lookup = self._resolve_where(
             resolution_dag=resolution_dag,
         )
 
-        filter_input_issue_set = resolved_spec_lookup.issue_set
-
-        if filter_input_issue_set.has_issues:
+        if filter_spec_lookup.issue_set.has_issues:
             mappings_to_merge.append(
-                InputToIssueSetMapping(
-                    items=(InputToIssueSetMappingItem(resolver_input=filter_input, issue_set=filter_input_issue_set),)
+                InputToIssueSetMapping.from_one_item(
+                    resolver_input=filter_input,
+                    issue_set=filter_spec_lookup.issue_set,
                 )
             )
 
         # Return if there are any errors since additional fields would not be useful.
         issue_set_mapping_so_far = InputToIssueSetMapping.merge_iterable(mappings_to_merge)
-        if issue_set_mapping_so_far.has_errors:
+        if issue_set_mapping_so_far.has_issues:
             return MetricFlowQueryResolution(
                 query_spec=None,
                 resolution_dag=resolution_dag,
-                where_filter_resolved_spec_lookup=resolved_spec_lookup,
+                filter_spec_lookup=filter_spec_lookup,
                 input_to_issue_set=issue_set_mapping_so_far,
             )
 
@@ -373,6 +382,17 @@ class MetricFlowQueryResolver:
                             issue_set=query_level_issue_set,
                         ),
                     )
+                )
+            )
+
+        issue_set_mapping = InputToIssueSetMapping.merge_iterable(mappings_to_merge)
+
+        if issue_set_mapping.has_issues:
+            return MetricFlowQueryResolution(
+                query_spec=None,
+                resolution_dag=resolution_dag,
+                filter_spec_lookup=filter_spec_lookup,
+                input_to_issue_set=issue_set_mapping,
             )
 
         return MetricFlowQueryResolution(
@@ -384,9 +404,9 @@ class MetricFlowQueryResolver:
                 order_by_specs=tuple(order_by_specs),
                 limit=limit_input.limit,
                 filter_intersection=filter_input.where_filter_intersection,
-                filter_spec_resolution_lookup=resolved_spec_lookup,
+                filter_spec_resolution_lookup=filter_spec_lookup,
             ),
             resolution_dag=resolution_dag,
-            where_filter_resolved_spec_lookup=resolved_spec_lookup,
-            input_to_issue_set=InputToIssueSetMapping(tuple(input_to_issue_set_mapping_items)),
+            filter_spec_lookup=filter_spec_lookup,
+            input_to_issue_set=issue_set_mapping,
         )

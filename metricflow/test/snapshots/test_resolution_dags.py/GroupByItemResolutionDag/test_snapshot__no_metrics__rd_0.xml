@@ -3,10 +3,10 @@
         <!-- description = Output the valid group by items in the metric query. -->
         <!-- node_id = qr_0 -->
         <!-- metrics_in_query = [] -->
-        <AnyModelGroupByItemResolutionNode>
+        <NoMetricsQueryGroupByItemResolutionNode>
             <!-- description =                                                         -->
             <!--   Output the valid group-by-items available from any semantic model.  -->
             <!-- node_id = vr_0 -->
-        </AnyModelGroupByItemResolutionNode>
+        </NoMetricsQueryGroupByItemResolutionNode>
     </QueryGroupByItemResolutionNode>
 </GroupByItemResolutionDag>

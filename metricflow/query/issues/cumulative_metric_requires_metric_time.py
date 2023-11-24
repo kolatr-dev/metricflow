@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from dbt_semantic_interfaces.naming.keywords import METRIC_TIME_ELEMENT_NAME
 from dbt_semantic_interfaces.references import MetricReference
 from typing_extensions import override
 
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
+from metricflow.query.group_by_item.resolution_path import MetricFlowQueryResolutionPath
 from metricflow.query.issues.issues_base import (
     MetricFlowQueryIssueType,
     MetricFlowQueryResolutionIssue,
-    MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
 
 
 @dataclass(frozen=True)
@@ -21,10 +20,10 @@ class CumulativeMetricRequiresMetricTimeIssue(MetricFlowQueryResolutionIssue):
     metric_reference: MetricReference
 
     @override
-    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
+    def ui_description(self, associated_input: MetricFlowQueryResolverInput) -> str:
         return (
-            f"The query includes a cumulative metric {repr(self.metric_reference.element_name)} but the "
-            f"group-by-items do not include {repr(METRIC_TIME_ELEMENT_NAME)}"
+            f"The query includes a cumulative metric {repr(self.metric_reference.element_name)} that does not "
+            f"accumulate over all-time, but the group-by items do not include {repr(METRIC_TIME_ELEMENT_NAME)}"
         )
 
     @override

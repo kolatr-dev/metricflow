@@ -68,7 +68,7 @@ class ObjectBuilderNamingScheme(QueryItemNamingScheme):
 
         for dimension_call_parameter_set in call_parameter_sets.dimension_call_parameter_sets:
             return DimensionPattern(
-                EntityLinkPatternParameterSet(
+                EntityLinkPatternParameterSet.from_parameters(
                     element_name=dimension_call_parameter_set.dimension_reference.element_name,
                     entity_links=dimension_call_parameter_set.entity_path,
                     time_granularity=None,
@@ -92,7 +92,7 @@ class ObjectBuilderNamingScheme(QueryItemNamingScheme):
                 fields_to_compare.append(ParameterSetField.TIME_GRANULARITY)
 
             return TimeDimensionPattern(
-                EntityLinkPatternParameterSet(
+                EntityLinkPatternParameterSet.from_parameters(
                     element_name=time_dimension_call_parameter_set.time_dimension_reference.element_name,
                     entity_links=time_dimension_call_parameter_set.entity_path,
                     time_granularity=time_dimension_call_parameter_set.time_granularity,
@@ -103,7 +103,7 @@ class ObjectBuilderNamingScheme(QueryItemNamingScheme):
 
         for entity_call_parameter_set in call_parameter_sets.entity_call_parameter_sets:
             return EntityLinkPattern(
-                EntityLinkPatternParameterSet(
+                EntityLinkPatternParameterSet.from_parameters(
                     element_name=entity_call_parameter_set.entity_reference.element_name,
                     entity_links=entity_call_parameter_set.entity_path,
                     time_granularity=None,
