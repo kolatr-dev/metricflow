@@ -6,13 +6,18 @@ from dbt_semantic_interfaces.naming.keywords import METRIC_TIME_ELEMENT_NAME
 from typing_extensions import override
 
 from metricflow.specs.patterns.spec_pattern import SpecPattern
-from metricflow.specs.specs import LinkableInstanceSpec, LinkableSpecSet, TimeDimensionSpec
+from metricflow.specs.specs import (
+    InstanceSpec,
+    InstanceSpecSet,
+    LinkableSpecSet,
+    TimeDimensionSpec,
+)
 
 
 class MetricTimePattern(SpecPattern):
     @override
-    def match(self, candidate_specs: Sequence[LinkableInstanceSpec]) -> Sequence[TimeDimensionSpec]:
-        spec_set = LinkableSpecSet.from_specs(candidate_specs)
+    def match(self, candidate_specs: Sequence[InstanceSpec]) -> Sequence[TimeDimensionSpec]:
+        spec_set = LinkableSpecSet.from_specs(InstanceSpecSet.from_specs(candidate_specs).linkable_specs)
         return tuple(
             time_dimension_spec
             for time_dimension_spec in spec_set.time_dimension_specs

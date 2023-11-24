@@ -15,7 +15,7 @@ from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
 
 
 @dataclass(frozen=True)
@@ -35,7 +35,7 @@ class AmbiguousGroupByItemIssue(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
+    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
         if associated_input is not None and associated_input.naming_scheme is not None:
             naming_scheme = associated_input.naming_scheme
         else:

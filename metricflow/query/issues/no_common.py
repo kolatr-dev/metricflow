@@ -14,7 +14,7 @@ from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
 
 
 @dataclass(frozen=True)
@@ -35,7 +35,7 @@ class NoCommonItemsInParents(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
+    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
         last_path_item = self.query_resolution_path.last_item
         last_path_item_parent_descriptions = ", ".join(
             [parent_node.ui_description for parent_node in last_path_item.parent_nodes]

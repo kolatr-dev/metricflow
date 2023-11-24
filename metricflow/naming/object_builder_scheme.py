@@ -22,7 +22,11 @@ from metricflow.specs.patterns.entity_link_pattern import (
     TimeDimensionPattern,
 )
 from metricflow.specs.patterns.spec_pattern import SpecPattern
-from metricflow.specs.specs import LinkableInstanceSpec, LinkableSpecSet, LinkableSpecSetTransform
+from metricflow.specs.specs import (
+    InstanceSpec,
+    InstanceSpecSet,
+    InstanceSpecSetTransform,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +37,8 @@ class ObjectBuilderNamingScheme(QueryItemNamingScheme):
     _NAME_REGEX = re.compile(r"\A(Dimension|TimeDimension|Entity)\(.*\)\Z")
 
     @override
-    def input_str(self, instance_spec: LinkableInstanceSpec) -> Optional[str]:
-        names = _ObjectBuilderNameTransform().transform(LinkableSpecSet.from_specs((instance_spec,)))
+    def input_str(self, instance_spec: InstanceSpec) -> Optional[str]:
+        names = _ObjectBuilderNameTransform().transform(InstanceSpecSet.from_specs((instance_spec,)))
 
         if len(names) != 1:
             raise RuntimeError(f"Did not get exactly 1 name from {instance_spec}. Got {names}")
@@ -133,7 +137,7 @@ class ObjectBuilderNamingScheme(QueryItemNamingScheme):
         return f"{self.__class__.__name__}(id()={hex(id(self))})"
 
 
-class _ObjectBuilderNameTransform(LinkableSpecSetTransform[Sequence[str]]):
+class _ObjectBuilderNameTransform(InstanceSpecSetTransform[Sequence[str]]):
     """Transforms specs into strings following the object builder scheme."""
 
     @staticmethod
@@ -165,7 +169,7 @@ class _ObjectBuilderNameTransform(LinkableSpecSetTransform[Sequence[str]]):
         return ", ".join(initializer_parameters)
 
     @override
-    def transform(self, spec_set: LinkableSpecSet) -> Sequence[str]:
+    def transform(self, spec_set: InstanceSpecSet) -> Sequence[str]:
         assert len(spec_set.entity_specs) + len(spec_set.dimension_specs) + len(spec_set.time_dimension_specs) == 1
 
         names_to_return = []

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 from dbt_semantic_interfaces.call_parameter_sets import (
     DimensionCallParameterSet,
@@ -13,10 +13,11 @@ from dbt_semantic_interfaces.call_parameter_sets import (
 from dbt_semantic_interfaces.references import EntityReference
 from dbt_semantic_interfaces.type_enums import TimeGranularity
 from dbt_semantic_interfaces.type_enums.date_part import DatePart
+from more_itertools import is_sorted
 from typing_extensions import override
 
 from metricflow.specs.patterns.spec_pattern import SpecPattern
-from metricflow.specs.specs import LinkableInstanceSpec, LinkableSpecSet
+from metricflow.specs.specs import InstanceSpec, InstanceSpecSet, LinkableInstanceSpec
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,11 @@ class ParameterSetField(Enum):
     ENTITY_LINKS = "entity_links"
     TIME_GRANULARITY = "time_granularity"
     DATE_PART = "date_part"
+
+    def __lt__(self, other: Any) -> bool:  # type: ignore[misc]
+        if self.__class__ is other.__class__:
+            return self.value < other.value
+        return NotImplemented
 
 
 @dataclass(frozen=True)
@@ -49,6 +55,26 @@ class EntityLinkPatternParameterSet:
     time_granularity: Optional[TimeGranularity] = None
     date_part: Optional[DatePart] = None
 
+    @staticmethod
+    def from_parameters(
+        fields_to_compare: Sequence[ParameterSetField],
+        element_name: Optional[str] = None,
+        entity_links: Optional[Sequence[EntityReference]] = None,
+        time_granularity: Optional[TimeGranularity] = None,
+        date_part: Optional[DatePart] = None,
+    ) -> EntityLinkPatternParameterSet:
+        return EntityLinkPatternParameterSet(
+            fields_to_compare=tuple(sorted(fields_to_compare)),
+            element_name=element_name,
+            entity_links=tuple(entity_links) if entity_links is not None else None,
+            time_granularity=time_granularity,
+            date_part=date_part,
+        )
+
+    def __post_init__(self) -> None:
+        """Check that fields_to_compare is sorted so that patterns that do the same thing can be compared."""
+        assert is_sorted(self.fields_to_compare)
+
 
 @dataclass(frozen=True)
 class EntityLinkPattern(SpecPattern):
@@ -64,16 +90,17 @@ class EntityLinkPattern(SpecPattern):
     parameter_set: EntityLinkPatternParameterSet
 
     @override
-    def match(self, candidate_specs: Sequence[LinkableInstanceSpec]) -> Sequence[LinkableInstanceSpec]:
+    def match(self, candidate_specs: Sequence[InstanceSpec]) -> Sequence[LinkableInstanceSpec]:
+        filtered_candidate_specs = InstanceSpecSet.from_specs(candidate_specs).linkable_specs
+
         matching_specs: List[LinkableInstanceSpec] = []
 
         # Using some Python introspection magic to figure out specs that match the listed fields.
         keys_to_check = set(field_to_compare.value for field_to_compare in self.parameter_set.fields_to_compare)
-        asdict(self.parameter_set)
         # Checks that EntityLinkPatternParameterSetField is valid wrt to the parameter set.
         parameter_set_values = tuple(getattr(self.parameter_set, key_to_check) for key_to_check in keys_to_check)
 
-        for spec in candidate_specs:
+        for spec in filtered_candidate_specs:
             spec_values = tuple(
                 (getattr(spec, key_to_check) if hasattr(spec, key_to_check) else None) for key_to_check in keys_to_check
             )
@@ -91,8 +118,8 @@ class DimensionPattern(EntityLinkPattern):
     """
 
     @override
-    def match(self, candidate_specs: Sequence[LinkableInstanceSpec]) -> Sequence[LinkableInstanceSpec]:
-        spec_set = LinkableSpecSet.from_specs(tuple(candidate_specs))
+    def match(self, candidate_specs: Sequence[InstanceSpec]) -> Sequence[LinkableInstanceSpec]:
+        spec_set = InstanceSpecSet.from_specs(candidate_specs)
         filtered_specs: Sequence[LinkableInstanceSpec] = spec_set.dimension_specs + spec_set.time_dimension_specs
         return super().match(filtered_specs)
 
@@ -120,8 +147,8 @@ class TimeDimensionPattern(EntityLinkPattern):
     """
 
     @override
-    def match(self, candidate_specs: Sequence[LinkableInstanceSpec]) -> Sequence[LinkableInstanceSpec]:
-        spec_set = LinkableSpecSet.from_specs(tuple(candidate_specs))
+    def match(self, candidate_specs: Sequence[InstanceSpec]) -> Sequence[LinkableInstanceSpec]:
+        spec_set = InstanceSpecSet.from_specs(candidate_specs)
         return super().match(spec_set.time_dimension_specs)
 
     @staticmethod
@@ -156,8 +183,8 @@ class EntityPattern(EntityLinkPattern):
     """
 
     @override
-    def match(self, candidate_specs: Sequence[LinkableInstanceSpec]) -> Sequence[LinkableInstanceSpec]:
-        spec_set = LinkableSpecSet.from_specs(tuple(candidate_specs))
+    def match(self, candidate_specs: Sequence[InstanceSpec]) -> Sequence[LinkableInstanceSpec]:
+        spec_set = InstanceSpecSet.from_specs(candidate_specs)
         return super().match(spec_set.entity_specs)
 
     @staticmethod

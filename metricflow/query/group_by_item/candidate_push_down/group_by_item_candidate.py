@@ -10,7 +10,7 @@ from metricflow.query.group_by_item.path_prefixable import PathPrefixable
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
 from metricflow.query.issues.issues_base import MetricFlowQueryResolutionPath
 from metricflow.specs.patterns.spec_pattern import SpecPattern
-from metricflow.specs.specs import LinkableInstanceSpec, LinkableSpecSet
+from metricflow.specs.specs import InstanceSpecSet, LinkableInstanceSpec, LinkableSpecSet
 
 
 @dataclass(frozen=True)
@@ -63,7 +63,7 @@ class GroupByItemCandidateSet(PathPrefixable):
         self,
         spec_pattern: SpecPattern,
     ) -> GroupByItemCandidateSet:
-        matching_specs = tuple(spec_pattern.match(self.specs))
+        matching_specs = tuple(InstanceSpecSet.from_specs(spec_pattern.match(self.specs)).linkable_specs)
         if len(matching_specs) == 0:
             return GroupByItemCandidateSet.empty_instance()
 

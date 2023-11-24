@@ -12,7 +12,7 @@ from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
 from metricflow.specs.specs import LinkableInstanceSpec
 
 
@@ -34,7 +34,7 @@ class NoCandidatesWithNoneDatePartIssue(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
+    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
         # TODO: Improve error.
         lines = [
             f"{self.query_resolution_path.last_item.ui_description} does not allow group-by-items "

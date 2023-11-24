@@ -3,6 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+from dbt_semantic_interfaces.call_parameter_sets import TimeDimensionCallParameterSet
+from dbt_semantic_interfaces.naming.keywords import METRIC_TIME_ELEMENT_NAME
+from dbt_semantic_interfaces.references import TimeDimensionReference
+from dbt_semantic_interfaces.type_enums import TimeGranularity
+
+from metricflow.collection_helpers.pretty_print import mf_pformat
+from metricflow.formatting import indent_log_line
 from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
 from metricflow.query.group_by_item.candidate_push_down.push_down_visitor import (
     PushDownResult,
@@ -15,8 +22,9 @@ from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionPath,
 )
 from metricflow.specs.patterns.base_time_grain import BaseTimeGrainPattern
+from metricflow.specs.patterns.entity_link_pattern import TimeDimensionPattern
 from metricflow.specs.patterns.spec_pattern import SpecPattern
-from metricflow.specs.specs import LinkableInstanceSpec
+from metricflow.specs.specs import LinkableInstanceSpec, LinkableSpecSet
 
 
 @dataclass(frozen=True)
@@ -133,3 +141,24 @@ class GroupByItemResolver:
             specs=push_down_result.candidate_set.specs,
             issue_set=push_down_result.issue_set,
         )
+
+    def resolve_metric_time_grain(self) -> TimeGranularity:
+        metric_time_grain_resolution = self.resolve_matching_item_for_querying(
+            spec_pattern=TimeDimensionPattern.from_call_parameter_set(
+                TimeDimensionCallParameterSet(
+                    entity_path=(),
+                    time_dimension_reference=TimeDimensionReference(element_name=METRIC_TIME_ELEMENT_NAME),
+                )
+            ),
+        )
+        metric_time_spec_set = (
+            LinkableSpecSet.from_specs((metric_time_grain_resolution.spec,))
+            if metric_time_grain_resolution.spec is not None
+            else LinkableSpecSet.empty_instance()
+        )
+        if len(metric_time_spec_set.time_dimension_specs) != 1:
+            raise RuntimeError(
+                f"The grain for {repr(METRIC_TIME_ELEMENT_NAME)} could not be resolved. Got issues:\n\n"
+                f"{indent_log_line(mf_pformat(metric_time_grain_resolution.issue_set))}"
+            )
+        return metric_time_spec_set.time_dimension_specs[0].time_granularity

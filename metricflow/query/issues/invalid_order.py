@@ -11,7 +11,7 @@ from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput, ResolverInputForOrderBy
+from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput, ResolverInputForOrderBy
 
 
 @dataclass(frozen=True)
@@ -31,10 +31,10 @@ class InvalidOrderByItemIssue(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
+    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
         return (
-            f"The order by item {repr(self.order_by_item_input.ui_description)} does not match any of the input "
-            f"query items."
+            f"The order-by item {repr(self.order_by_item_input.input_obj)} does not match exactly one "
+            f"of the query items."
         )
 
     @override

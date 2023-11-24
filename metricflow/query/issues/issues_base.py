@@ -11,7 +11,7 @@ from metricflow.collection_helpers.merger import Mergeable
 from metricflow.naming.naming_scheme import QueryItemNamingScheme
 from metricflow.query.group_by_item.path_prefixable import PathPrefixable
 from metricflow.query.group_by_item.resolution_nodes.base_node import GroupByItemResolutionNode
-from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
 
 
 class MetricFlowQueryIssueType(Enum):
@@ -87,7 +87,7 @@ class MetricFlowQueryResolutionIssue(PathPrefixable, ABC):
     query_resolution_path: MetricFlowQueryResolutionPath
 
     @abstractmethod
-    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
+    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
         raise NotImplementedError
 
 

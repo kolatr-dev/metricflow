@@ -11,16 +11,16 @@ from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
 
 
 @dataclass(frozen=True)
-class GroupByItemNameParsingIssue(MetricFlowQueryResolutionIssue):
+class StringInputParsingIssue(MetricFlowQueryResolutionIssue):
     input_str: str
 
     @staticmethod
-    def from_parameters(input_str: str) -> GroupByItemNameParsingIssue:
-        return GroupByItemNameParsingIssue(
+    def from_parameters(input_str: str) -> StringInputParsingIssue:
+        return StringInputParsingIssue(
             issue_type=MetricFlowQueryIssueType.ERROR,
             parent_issues=(),
             query_resolution_path=MetricFlowQueryResolutionPath.empty_instance(),
@@ -28,12 +28,12 @@ class GroupByItemNameParsingIssue(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
-        return f"The group-by-item {repr(self.input_str)} does not match any of the known formats."
+    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
+        return f"The input {repr(self.input_str)} does not match any of the known formats."
 
     @override
-    def with_path_prefix(self, path_prefix_node: GroupByItemResolutionNode) -> GroupByItemNameParsingIssue:
-        return GroupByItemNameParsingIssue(
+    def with_path_prefix(self, path_prefix_node: GroupByItemResolutionNode) -> StringInputParsingIssue:
+        return StringInputParsingIssue(
             issue_type=self.issue_type,
             parent_issues=tuple(issue.with_path_prefix(path_prefix_node) for issue in self.parent_issues),
             query_resolution_path=self.query_resolution_path.with_path_prefix(path_prefix_node),

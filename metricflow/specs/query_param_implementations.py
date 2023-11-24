@@ -10,6 +10,7 @@ from dbt_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 from typing_extensions import override
 
 from metricflow.naming.linkable_spec_name import StructuredLinkableSpecName
+from metricflow.naming.metric_scheme import MetricNamingScheme
 from metricflow.naming.object_builder_scheme import ObjectBuilderNamingScheme
 from metricflow.protocols.query_parameter import (
     DimensionOrEntityQueryParameter,
@@ -27,6 +28,7 @@ from metricflow.specs.patterns.entity_link_pattern import (
     EntityLinkPatternParameterSet,
     ParameterSetField,
 )
+from metricflow.specs.patterns.metric_pattern import MetricSpecPattern
 
 
 @dataclass(frozen=True)
@@ -61,7 +63,7 @@ class TimeDimensionParameter(ProtocolHint[TimeDimensionQueryParameter]):
             input_obj=self,
             input_obj_naming_scheme=ObjectBuilderNamingScheme(),
             spec_pattern=EntityLinkPattern(
-                EntityLinkPatternParameterSet(
+                EntityLinkPatternParameterSet.from_parameters(
                     fields_to_compare=tuple(fields_to_compare),
                     element_name=name_structure.element_name,
                     entity_links=tuple(EntityReference(link_name) for link_name in name_structure.entity_link_names),
@@ -94,7 +96,11 @@ class DimensionOrEntityParameter(ProtocolHint[DimensionOrEntityQueryParameter]):
             input_obj_naming_scheme=ObjectBuilderNamingScheme(),
             spec_pattern=EntityLinkPattern(
                 EntityLinkPatternParameterSet(
-                    fields_to_compare=(ParameterSetField.ELEMENT_NAME, ParameterSetField.ENTITY_LINKS),
+                    fields_to_compare=(
+                        ParameterSetField.ELEMENT_NAME,
+                        ParameterSetField.ENTITY_LINKS,
+                        ParameterSetField.DATE_PART,
+                    ),
                     element_name=name_structure.element_name,
                     entity_links=tuple(EntityReference(link_name) for link_name in name_structure.entity_link_names),
                     time_granularity=None,
@@ -114,7 +120,8 @@ class MetricParameter:
     def query_resolver_input(self) -> ResolverInputForMetric:
         return ResolverInputForMetric(
             input_obj=self,
-            metric_reference=MetricReference(element_name=self.name.lower()),
+            naming_scheme=MetricNamingScheme(),
+            spec_pattern=MetricSpecPattern(metric_reference=self.name)
         )
 
 
@@ -126,15 +133,10 @@ class OrderByParameter:
     descending: bool = False
 
     @property
-    def ui_description(self) -> str:
-        if self.descending:
-            return f"-{self.order_by}"
-        return f"{self.order_by}"
-
-    @property
     def query_resolver_input(self) -> ResolverInputForOrderBy:
         return ResolverInputForOrderBy(
-            input_item_to_order=self.order_by.query_resolver_input,
+            input_obj=self,
+            possible_inputs=(self.order_by.query_resolver_input,),
             descending=self.descending,
         )
 

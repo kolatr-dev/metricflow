@@ -32,7 +32,7 @@ from metricflow.query.issues.no_matching_none_date_part import NoCandidatesWithN
 from metricflow.specs.patterns.base_time_grain import BaseTimeGrainPattern
 from metricflow.specs.patterns.none_date_part import NoneDatePartPattern
 from metricflow.specs.patterns.spec_pattern import SpecPattern
-from metricflow.specs.specs import LinkableInstanceSpec
+from metricflow.specs.specs import InstanceSpecSet, LinkableInstanceSpec
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ class _PushDownGroupByItemCandidatesVisitor(GroupByItemResolutionNodeVisitor[Pus
             matching_specs = specs_available_for_measure
 
             for pattern_to_apply in patterns_to_apply:
-                matching_specs = pattern_to_apply.match(matching_specs)
+                matching_specs = InstanceSpecSet.from_specs(pattern_to_apply.match(matching_specs)).linkable_specs
 
             logger.info(
                 f"For {node.ui_description}:\n"
@@ -252,7 +252,7 @@ class _PushDownGroupByItemCandidatesVisitor(GroupByItemResolutionNodeVisitor[Pus
 
             matched_specs = candidate_specs
             for pattern_to_apply in patterns_to_apply:
-                matched_specs = pattern_to_apply.match(matched_specs)
+                matched_specs = InstanceSpecSet.from_specs(pattern_to_apply.match(matched_specs)).linkable_specs
 
             logger.info(
                 f"For {node.ui_description}:\n"
@@ -310,11 +310,11 @@ class _PushDownGroupByItemCandidatesVisitor(GroupByItemResolutionNodeVisitor[Pus
             logger.info(f"Handling {node.ui_description}")
             # This is a case for distinct dimension values from semantic models.
             candidate_specs = self._semantic_manifest_lookup.metric_lookup.group_by_item_specs_for_no_metrics_query()
-            matched_specs = candidate_specs
-            for spec_pattern in self._source_spec_patterns:
-                matched_specs = spec_pattern.match(matched_specs)
+            matching_specs = candidate_specs
+            for pattern_to_apply in self._source_spec_patterns:
+                matching_specs = InstanceSpecSet.from_specs(pattern_to_apply.match(matching_specs)).linkable_specs
 
-            if len(matched_specs) == 0:
+            if len(matching_specs) == 0:
                 return PushDownResult(
                     candidate_set=GroupByItemCandidateSet.empty_instance(),
                     issue_set=MetricFlowQueryResolutionIssueSet.from_issue(
@@ -327,7 +327,7 @@ class _PushDownGroupByItemCandidatesVisitor(GroupByItemResolutionNodeVisitor[Pus
                 )
             return PushDownResult(
                 candidate_set=GroupByItemCandidateSet(
-                    specs=tuple(matched_specs),
+                    specs=tuple(matching_specs),
                     measure_paths=(current_traversal_path,),
                     path_from_leaf_node=current_traversal_path,
                 ),

@@ -11,7 +11,7 @@ from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
 from metricflow.specs.specs import LinkableInstanceSpec
 
 
@@ -33,7 +33,7 @@ class NoMatchingGroupByItemsAtRoot(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
+    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
         return (
             f"The given input does not match any of the available group by items for "
             f"{self.query_resolution_path.last_item.ui_description}."

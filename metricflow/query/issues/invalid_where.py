@@ -14,7 +14,7 @@ from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class WhereFilterParsingIssue(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
+    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
         return (
             f"Error parsing where filter:\n\n"
             f"{indent_log_line(repr(self.where_filter.where_sql_template))}\n\n"

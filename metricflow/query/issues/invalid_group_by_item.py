@@ -11,7 +11,7 @@ from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput, ResolverInputForGroupBy
+from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput, ResolverInputForGroupBy
 from metricflow.specs.specs import LinkableInstanceSpec
 
 
@@ -38,7 +38,7 @@ class InvalidGroupByItemIssue(MetricFlowQueryResolutionIssue):
         )
 
     @override
-    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
+    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
         # TODO: Improve message.
         return f"{self.group_by_item_input} is not a valid group by item for the query."
 

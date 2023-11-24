@@ -9,10 +9,12 @@ from dbt_semantic_interfaces.references import MetricReference
 from typing_extensions import override
 
 from metricflow.collection_helpers.pretty_print import mf_pformat
+from metricflow.naming.metric_scheme import MetricNamingScheme
 from metricflow.naming.naming_scheme import QueryItemNamingScheme
-from metricflow.naming.object_builder_scheme import ObjectBuilderNamingScheme
 from metricflow.protocols.query_parameter import GroupByParameter, MetricQueryParameter
+from metricflow.specs.patterns.metric_pattern import MetricSpecPattern
 from metricflow.specs.patterns.spec_pattern import SpecPattern
+from metricflow.specs.query_param_implementations import OrderByParameter
 
 
 class MetricFlowQueryResolverInput(ABC):
@@ -21,30 +23,40 @@ class MetricFlowQueryResolverInput(ABC):
     def ui_description(self) -> str:
         raise NotImplementedError
 
+
+@dataclass(frozen=True)
+class InvalidStringInput(MetricFlowQueryResolverInput):
+    input_obj: str
+
     @property
-    def naming_scheme(self) -> Optional[QueryItemNamingScheme]:
-        return None
+    def ui_description(self) -> str:
+        return self.input_obj
 
 
-# class ResolverInputForMetric(MetricFlowQueryResolverInput, ABC):
-#     @property
-#     @abstractmethod
-#     def metric_reference(self) -> MetricReference:
-#         raise NotImplementedError
+class NamedResolverInput(MetricFlowQueryResolverInput, ABC):
+    @property
+    def naming_scheme(self) -> QueryItemNamingScheme:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def spec_pattern(self) -> SpecPattern:
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
-class ResolverInputForMetric(MetricFlowQueryResolverInput):
+class ResolverInputForMetric(NamedResolverInput):
     input_obj: Union[MetricQueryParameter, str]
-    metric_reference: MetricReference
+    naming_scheme: MetricNamingScheme
+    spec_pattern: MetricSpecPattern
 
     @property
     @override
     def ui_description(self) -> str:
-        return repr(self.input_obj)
+        return str(self.input_obj)
 
 
-# class ResolverInputForGroupBy(MetricFlowQueryResolverInput, ABC):
+# class ResolverInputForGroupBy(NamedResolverInput, ABC):
 #     @property
 #     @abstractmethod
 #     def naming_scheme(self) -> QueryItemNamingScheme:
@@ -57,7 +69,7 @@ class ResolverInputForMetric(MetricFlowQueryResolverInput):
 
 
 @dataclass(frozen=True)
-class ResolverInputForGroupBy(MetricFlowQueryResolverInput):
+class ResolverInputForGroupBy(NamedResolverInput):
     input_obj: Union[GroupByParameter, str]
     input_obj_naming_scheme: QueryItemNamingScheme
     spec_pattern: SpecPattern
@@ -69,45 +81,27 @@ class ResolverInputForGroupBy(MetricFlowQueryResolverInput):
 
     @property
     @override
-    def naming_scheme(self) -> Optional[QueryItemNamingScheme]:
+    def naming_scheme(self) -> QueryItemNamingScheme:
         return self.input_obj_naming_scheme
 
 
 @dataclass(frozen=True)
 class ResolverInputForOrderBy(MetricFlowQueryResolverInput):
-    """Describes the order direction for one of the metrics or group by items."""
+    """An input that describes the ordered item.
 
-    input_item_to_order: Union[ResolverInputForMetric, ResolverInputForGroupBy, NonMatchingInput]
+    The spec patterns in this object are used to match to one of the metric / group-by-item specs of the query. This is
+    necessary because with different input object types, an equality mapping between the group-by item and the order-by
+    item won't work. e.g. group-by item: "TimeDimension("metric_time__day"), order-by item: "metric_time__day".
+    """
+
+    input_obj: Union[str, OrderByParameter]
+    possible_inputs: Tuple[NamedResolverInput, ...]
     descending: bool
 
     @property
     @override
     def ui_description(self) -> str:
-        return self.input_item_to_order.ui_description
-
-    @property
-    @override
-    def naming_scheme(self) -> Optional[QueryItemNamingScheme]:
-        return self.input_item_to_order.naming_scheme
-
-    # @property
-    # @abstractmethod
-    # def input_item(self) -> Union[ResolverInputForMetric, ResolverInputForGroupBy, InvalidStringForOrderBy]:
-    #     raise NotImplementedError
-    #
-    # @property
-    # @abstractmethod
-    # def descending(self) -> bool:
-    #     raise NotImplementedError
-
-
-@dataclass(frozen=True)
-class NonMatchingInput(MetricFlowQueryResolverInput):
-    input_obj: str
-
-    @property
-    def ui_description(self) -> str:
-        return repr(self.input_obj)
+        return str(self.input_obj)
 
 
 @dataclass(frozen=True)
@@ -141,10 +135,6 @@ class ResolverInputForWhereFilterIntersection(MetricFlowQueryResolverInput):
             + ")"
         )
 
-    @property
-    def naming_scheme(self) -> Optional[QueryItemNamingScheme]:
-        return ObjectBuilderNamingScheme()
-
 
 @dataclass(frozen=True)
 class ResolverInputForQuery(MetricFlowQueryResolverInput):
@@ -155,9 +145,8 @@ class ResolverInputForQuery(MetricFlowQueryResolverInput):
     limit_input: ResolverInputForLimit
 
     @property
-    @override
     def ui_description(self) -> str:
         return (
-            f"Query({repr([metric_input.metric_reference.element_name for metric_input in self.metric_inputs])}, "
+            f"Query({repr([metric_input.ui_description for metric_input in self.metric_inputs])}, "
             f"{repr([group_by_item_input.input_obj for group_by_item_input in self.group_by_item_inputs])}"
         )

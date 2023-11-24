@@ -16,9 +16,9 @@ from metricflow.specs.patterns.entity_link_pattern import (
     ParameterSetField,
 )
 from metricflow.specs.specs import (
-    LinkableInstanceSpec,
-    LinkableSpecSet,
-    LinkableSpecSetTransform,
+    InstanceSpec,
+    InstanceSpecSet,
+    InstanceSpecSetTransform,
 )
 
 
@@ -36,8 +36,8 @@ class DunderNamingScheme(QueryItemNamingScheme):
         return f"extract_{date_part.value}"
 
     @override
-    def input_str(self, instance_spec: LinkableInstanceSpec) -> Optional[str]:
-        spec_set = LinkableSpecSet.from_specs((instance_spec,))
+    def input_str(self, instance_spec: InstanceSpec) -> Optional[str]:
+        spec_set = InstanceSpecSet.from_specs((instance_spec,))
 
         for time_dimension_spec in spec_set.time_dimension_specs:
             # From existing comment in StructuredLinkableSpecName:
@@ -46,7 +46,7 @@ class DunderNamingScheme(QueryItemNamingScheme):
             #
             if time_dimension_spec.date_part is not None:
                 return None
-        names = _DunderNameTransform().transform(LinkableSpecSet.from_specs((instance_spec,)))
+        names = _DunderNameTransform().transform(spec_set)
         if len(names) != 1:
             raise RuntimeError(f"Did not get 1 name for {instance_spec}. Got {names}")
 
@@ -143,11 +143,11 @@ class DunderNamingScheme(QueryItemNamingScheme):
         return f"{self.__class__.__name__}(id()={hex(id(self))})"
 
 
-class _DunderNameTransform(LinkableSpecSetTransform[Sequence[str]]):
+class _DunderNameTransform(InstanceSpecSetTransform[Sequence[str]]):
     """Transforms group-by-item spec into the dundered name."""
 
     @override
-    def transform(self, spec_set: LinkableSpecSet) -> Sequence[str]:
+    def transform(self, spec_set: InstanceSpecSet) -> Sequence[str]:
         names_to_return = []
 
         for time_dimension_spec in spec_set.time_dimension_specs:

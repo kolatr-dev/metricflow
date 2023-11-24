@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Sequence
 
-from metricflow.specs.specs import LinkableInstanceSpec
+from metricflow.specs.specs import InstanceSpec
 
 
 class SpecPattern(ABC):
@@ -13,10 +13,10 @@ class SpecPattern(ABC):
     """
 
     @abstractmethod
-    def match(self, candidate_specs: Sequence[LinkableInstanceSpec]) -> Sequence[LinkableInstanceSpec]:
+    def match(self, candidate_specs: Sequence[InstanceSpec]) -> Sequence[InstanceSpec]:
         """Given candidate specs, return the ones that match this pattern."""
         raise NotImplementedError
 
-    def matches_any(self, candidate_specs: Sequence[LinkableInstanceSpec]) -> bool:
+    def matches_any(self, candidate_specs: Sequence[InstanceSpec]) -> bool:
         """Returns true if this spec matches any of the given specs."""
         return len(self.match(candidate_specs)) > 0

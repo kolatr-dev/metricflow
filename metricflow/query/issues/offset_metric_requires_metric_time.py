@@ -14,7 +14,7 @@ from metricflow.query.issues.issues_base import (
     MetricFlowQueryResolutionIssue,
     MetricFlowQueryResolutionPath,
 )
-from metricflow.query.resolver_inputs.query_resolver_inputs import MetricFlowQueryResolverInput
+from metricflow.query.resolver_inputs.query_resolver_inputs import NamedResolverInput
 
 
 @dataclass(frozen=True)
@@ -23,7 +23,7 @@ class OffsetMetricRequiresMetricTimeIssue(MetricFlowQueryResolutionIssue):
     input_metrics: Tuple[MetricInput, ...]
 
     @override
-    def ui_description(self, associated_input: Optional[MetricFlowQueryResolverInput]) -> str:
+    def ui_description(self, associated_input: Optional[NamedResolverInput]) -> str:
         return (
             f"The query includes a metric {repr(self.metric_reference.element_name)} that specifies a time offset in "
             f"input metrics: {repr(self.input_metrics)}. However, group-by-items do not include "
