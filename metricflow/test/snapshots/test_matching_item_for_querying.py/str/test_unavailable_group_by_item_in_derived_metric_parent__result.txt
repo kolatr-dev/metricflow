@@ -1,0 +1,17 @@
+GroupByItemResolution(
+  issue_set=MetricFlowQueryResolutionIssueSet(
+    issues=(
+      NoMatchingItemsForMeasure(
+        issue_type=ERROR,
+        query_resolution_path=MetricFlowQueryResolutionPath(
+          resolution_path_nodes=(
+            QueryGroupByItemResolutionNode(node_id=qr_5),
+            MetricGroupByItemResolutionNode(node_id=mtr_10),
+            MetricGroupByItemResolutionNode(node_id=mtr_8),
+            MeasureGroupByItemSourceNode(node_id=msr_7),
+          ),
+        ),
+      ),
+    ),
+  ),
+)
