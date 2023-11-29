@@ -1,0 +1,6 @@
+[
+  "TimeDimension('daily_measure_entity__creation_time', 'month')",
+  "TimeDimension('daily_measure_entity__creation_time', 'quarter')",
+  "TimeDimension('daily_measure_entity__creation_time', 'year')",
+  "TimeDimension('metric_time', 'month')",
+]
