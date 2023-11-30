@@ -42,6 +42,6 @@ FROM (
       )
     )
 ) subq_16
-WHERE listing__capacity > 2
+WHERE (listing__capacity > 2) AND (listing__capacity > 2)
 GROUP BY
   metric_time__day

@@ -309,7 +309,7 @@ FROM (
             )
         ) subq_5
       ) subq_6
-      WHERE listing__capacity > 2
+      WHERE (listing__capacity > 2) AND (listing__capacity > 2)
     ) subq_7
   ) subq_8
   GROUP BY
