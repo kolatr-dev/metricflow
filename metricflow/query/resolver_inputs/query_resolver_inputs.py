@@ -14,6 +14,7 @@ from typing_extensions import override
 from metricflow.collection_helpers.pretty_print import mf_pformat
 from metricflow.naming.metric_scheme import MetricNamingScheme
 from metricflow.naming.naming_scheme import QueryItemNamingScheme
+from metricflow.naming.object_builder_scheme import ObjectBuilderNamingScheme
 from metricflow.protocols.query_parameter import GroupByParameter, MetricQueryParameter, OrderByQueryParameter
 from metricflow.query.resolver_inputs.base_resolver_inputs import InputPatternDescription, MetricFlowQueryResolverInput
 from metricflow.specs.patterns.metric_pattern import MetricSpecPattern
@@ -115,8 +116,8 @@ class ResolverInputForLimit(MetricFlowQueryResolverInput):
 
 
 @dataclass(frozen=True)
-class ResolverInputForWhereFilterIntersection(MetricFlowQueryResolverInput):
-    """An input that describes the where filter."""
+class ResolverInputForQueryLevelWhereFilterIntersection(MetricFlowQueryResolverInput):
+    """An input that describes the where filter for the query."""
 
     where_filter_intersection: WhereFilterIntersection
 
@@ -134,12 +135,46 @@ class ResolverInputForWhereFilterIntersection(MetricFlowQueryResolverInput):
 
 
 @dataclass(frozen=True)
+class ResolverInputWhereFilterIntersection(MetricFlowQueryResolverInput):
+    """An input that describes the where filter that can occur anywhere in query resolution.
+
+    e.g. in metric definitions or at the query
+    """
+
+    where_filter_intersection: WhereFilterIntersection
+    # There many not be a pattern available for the intersection if there were parsing errors.
+    spec_pattern: Optional[SpecPattern]
+
+    @property
+    @override
+    def ui_description(self) -> str:
+        # TODO: Improve description.
+        return (
+            "WhereFilter("
+            + mf_pformat(
+                [where_filter.where_sql_template for where_filter in self.where_filter_intersection.where_filters]
+            )
+            + ")"
+        )
+
+    @property
+    @override
+    def input_pattern_description(self) -> Optional[InputPatternDescription]:
+        if self.spec_pattern is None:
+            return None
+
+        return InputPatternDescription(
+            naming_scheme=ObjectBuilderNamingScheme(),
+        )
+
+
+@dataclass(frozen=True)
 class ResolverInputForQuery(MetricFlowQueryResolverInput):
     """An input that describes the entire query."""
 
     metric_inputs: Tuple[ResolverInputForMetric, ...]
     group_by_item_inputs: Tuple[ResolverInputForGroupByItem, ...]
-    filter_input: ResolverInputForWhereFilterIntersection
+    filter_input: ResolverInputForQueryLevelWhereFilterIntersection
     order_by_item_inputs: Tuple[ResolverInputForOrderByItem, ...]
     limit_input: ResolverInputForLimit
 

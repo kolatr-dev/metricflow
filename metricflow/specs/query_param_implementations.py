@@ -68,6 +68,7 @@ class TimeDimensionParameter(ProtocolHint[TimeDimensionQueryParameter]):
                     entity_links=tuple(EntityReference(link_name) for link_name in name_structure.entity_link_names),
                     time_granularity=self.grain,
                     date_part=self.date_part,
+                    input_str=repr(self),
                 )
             ),
         )
@@ -104,6 +105,7 @@ class DimensionOrEntityParameter(ProtocolHint[DimensionOrEntityQueryParameter]):
                     entity_links=tuple(EntityReference(link_name) for link_name in name_structure.entity_link_names),
                     time_granularity=None,
                     date_part=None,
+                    input_str=repr(self),
                 )
             ),
         )

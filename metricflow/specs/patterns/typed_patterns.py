@@ -10,6 +10,7 @@ from dbt_semantic_interfaces.call_parameter_sets import (
 )
 from typing_extensions import override
 
+from metricflow.naming.object_builder_str import ObjectBuilderNameConverter
 from metricflow.specs.patterns.entity_link_pattern import (
     EntityLinkPattern,
     EntityLinkPatternParameterSet,
@@ -43,6 +44,9 @@ class DimensionPattern(EntityLinkPattern):
                 ),
                 element_name=dimension_call_parameter_set.dimension_reference.element_name,
                 entity_links=dimension_call_parameter_set.entity_path,
+                input_str=ObjectBuilderNameConverter.input_str_from_dimension_call_parameter_set(
+                    dimension_call_parameter_set
+                ),
             )
         )
 
@@ -84,6 +88,9 @@ class TimeDimensionPattern(EntityLinkPattern):
                 entity_links=time_dimension_call_parameter_set.entity_path,
                 time_granularity=time_dimension_call_parameter_set.time_granularity,
                 date_part=time_dimension_call_parameter_set.date_part,
+                input_str=ObjectBuilderNameConverter.input_str_from_time_dimension_call_parameter_set(
+                    time_dimension_call_parameter_set
+                ),
             )
         )
 
@@ -110,5 +117,8 @@ class EntityPattern(EntityLinkPattern):
                 ),
                 element_name=entity_call_parameter_set.entity_reference.element_name,
                 entity_links=entity_call_parameter_set.entity_path,
+                input_str=ObjectBuilderNameConverter.input_str_from_entity_call_parameter_set(
+                    entity_call_parameter_set
+                ),
             )
         )

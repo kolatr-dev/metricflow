@@ -77,6 +77,7 @@ class DunderNamingScheme(QueryItemNamingScheme):
                     time_granularity=time_grain,
                     date_part=None,
                     fields_to_compare=tuple(fields_to_compare),
+                    input_str=input_str,
                 )
             )
 
@@ -97,6 +98,7 @@ class DunderNamingScheme(QueryItemNamingScheme):
                         time_granularity=time_grain,
                         date_part=None,
                         fields_to_compare=fields_to_compare,
+                        input_str=input_str,
                     )
                 )
             # e.g. "messages__ds__month"
@@ -107,6 +109,7 @@ class DunderNamingScheme(QueryItemNamingScheme):
                     time_granularity=time_grain,
                     date_part=None,
                     fields_to_compare=fields_to_compare,
+                    input_str=input_str,
                 )
             )
 
@@ -118,6 +121,7 @@ class DunderNamingScheme(QueryItemNamingScheme):
                 time_granularity=None,
                 date_part=None,
                 fields_to_compare=fields_to_compare,
+                input_str=input_str,
             )
         )
 

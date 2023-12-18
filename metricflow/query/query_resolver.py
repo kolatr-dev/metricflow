@@ -37,9 +37,12 @@ from metricflow.query.resolver_inputs.query_resolver_inputs import (
     ResolverInputForMetric,
     ResolverInputForOrderByItem,
     ResolverInputForQuery,
-    ResolverInputForWhereFilterIntersection,
+    ResolverInputForQueryLevelWhereFilterIntersection,
+    ResolverInputWhereFilterIntersection,
 )
+from metricflow.query.suggestion_generator import QueryItemSuggestionGenerator
 from metricflow.query.validation_rules.query_validator import PostResolutionQueryValidator
+from metricflow.specs.patterns.whitelist_pattern import WhitelistSpecPatten
 from metricflow.specs.specs import (
     InstanceSpec,
     LinkableInstanceSpec,
@@ -94,16 +97,22 @@ class MetricFlowQueryResolver:
             manifest_lookup=self._manifest_lookup,
         )
 
+    @staticmethod
     def _resolve_group_by_item_input(
-        self, resolution_dag: GroupByItemResolutionDag, group_by_item_input: ResolverInputForGroupByItem
+        group_by_item_input: ResolverInputForGroupByItem,
+        group_by_item_resolver: GroupByItemResolver,
+        valid_group_by_item_specs_for_querying: Sequence[LinkableInstanceSpec],
     ) -> GroupByItemResolution:
-        group_by_item_resolver = GroupByItemResolver(
-            manifest_lookup=self._manifest_lookup,
-            resolution_dag=resolution_dag,
+        suggestion_generator = QueryItemSuggestionGenerator(
+            input_naming_scheme=group_by_item_input.input_obj_naming_scheme,
+            input_obj_str=str(group_by_item_input.input_obj),
+            candidate_filter=WhitelistSpecPatten(
+                whitelisted_specs=valid_group_by_item_specs_for_querying,
+            ),
         )
-
         return group_by_item_resolver.resolve_matching_item_for_querying(
             spec_pattern=group_by_item_input.spec_pattern,
+            suggestion_generator=suggestion_generator,
         )
 
     def _resolve_metric_inputs(
@@ -146,7 +155,7 @@ class MetricFlowQueryResolver:
         self,
         metric_references: Sequence[MetricReference],
         group_by_item_inputs: Sequence[ResolverInputForGroupByItem],
-        filter_input: ResolverInputForWhereFilterIntersection,
+        filter_input: ResolverInputForQueryLevelWhereFilterIntersection,
     ) -> ResolveGroupByItemsResult:
         resolution_dag_builder = GroupByItemResolutionDagBuilder(
             manifest_lookup=self._manifest_lookup,
@@ -157,11 +166,20 @@ class MetricFlowQueryResolver:
         )
         logger.info(f"Resolution DAG is:\n{dag_as_text(resolution_dag)}")
 
+        group_by_item_resolver = GroupByItemResolver(
+            manifest_lookup=self._manifest_lookup,
+            resolution_dag=resolution_dag,
+        )
+
+        valid_group_by_item_specs_for_querying = group_by_item_resolver.resolve_available_items().specs
+
         input_to_issue_set_mapping_items: List[InputToIssueSetMappingItem] = []
         group_by_item_specs: List[LinkableInstanceSpec] = []
         for group_by_item_input in group_by_item_inputs:
-            resolution = self._resolve_group_by_item_input(
-                resolution_dag=resolution_dag, group_by_item_input=group_by_item_input
+            resolution = MetricFlowQueryResolver._resolve_group_by_item_input(
+                group_by_item_resolver=group_by_item_resolver,
+                group_by_item_input=group_by_item_input,
+                valid_group_by_item_specs_for_querying=valid_group_by_item_specs_for_querying,
             )
             if resolution.issue_set.has_issues:
                 input_to_issue_set_mapping_items.append(
@@ -238,7 +256,7 @@ class MetricFlowQueryResolver:
             )
         return ResolveLimitResult(limit=limit, input_to_issue_set_mapping=InputToIssueSetMapping.empty_instance())
 
-    def _resolve_where(
+    def _build_filter_spec_lookup(
         self,
         resolution_dag: GroupByItemResolutionDag,
     ) -> FilterSpecResolutionLookUp:
@@ -255,14 +273,14 @@ class MetricFlowQueryResolver:
         group_by_item_inputs = resolver_input_for_query.group_by_item_inputs
         order_by_item_inputs = resolver_input_for_query.order_by_item_inputs
         limit_input = resolver_input_for_query.limit_input
-        filter_input = resolver_input_for_query.filter_input
+        query_level_filter_input = resolver_input_for_query.filter_input
 
         # Define a resolution path for issues where the input is considered to be the whole query.
         query_resolution_path = MetricFlowQueryResolutionPath.from_path_item(
             QueryGroupByItemResolutionNode(
                 parent_nodes=(),
                 metrics_in_query=tuple(metric_input.spec_pattern.metric_reference for metric_input in metric_inputs),
-                where_filter_intersection=filter_input.where_filter_intersection,
+                where_filter_intersection=query_level_filter_input.where_filter_intersection,
             )
         )
 
@@ -294,7 +312,7 @@ class MetricFlowQueryResolver:
         resolve_group_by_item_result = self._resolve_group_by_items_result(
             metric_references=tuple(metric_spec.reference for metric_spec in metric_specs),
             group_by_item_inputs=group_by_item_inputs,
-            filter_input=filter_input,
+            filter_input=query_level_filter_input,
         )
         resolution_dag = resolve_group_by_item_result.resolution_dag
         group_by_item_specs = resolve_group_by_item_result.group_by_item_specs
@@ -312,15 +330,30 @@ class MetricFlowQueryResolver:
             mappings_to_merge.append(resolve_order_by_result.input_to_issue_set_mapping)
 
         # Resolve where.
-        filter_spec_lookup = self._resolve_where(
-            resolution_dag=resolution_dag,
-        )
+        filter_spec_lookup = self._build_filter_spec_lookup(resolution_dag)
+        logger.error(f"filter_spec_lookup is {filter_spec_lookup}")
+        for filer_spec_resolution in filter_spec_lookup.spec_resolutions:
+            filer_spec_resolution_input = ResolverInputWhereFilterIntersection(
+                where_filter_intersection=filer_spec_resolution.where_filter_intersection,
+                spec_pattern=filer_spec_resolution.spec_pattern,
+            )
+            if filer_spec_resolution.issue_set.has_issues:
+                mappings_to_merge.append(
+                    InputToIssueSetMapping.from_one_item(
+                        resolver_input=filer_spec_resolution_input,
+                        issue_set=filer_spec_resolution.issue_set,
+                    )
+                )
 
-        if filter_spec_lookup.issue_set.has_issues:
+        for non_parsable_resolution in filter_spec_lookup.non_parsable_resolutions:
+            filer_spec_resolution_input = ResolverInputWhereFilterIntersection(
+                where_filter_intersection=non_parsable_resolution.where_filter_intersection,
+                spec_pattern=None,
+            )
             mappings_to_merge.append(
                 InputToIssueSetMapping.from_one_item(
-                    resolver_input=filter_input,
-                    issue_set=filter_spec_lookup.issue_set,
+                    resolver_input=filer_spec_resolution_input,
+                    issue_set=non_parsable_resolution.issue_set,
                 )
             )
 
@@ -374,7 +407,7 @@ class MetricFlowQueryResolver:
                 time_dimension_specs=linkable_spec_set.time_dimension_specs,
                 order_by_specs=tuple(order_by_specs),
                 limit=limit_input.limit,
-                filter_intersection=filter_input.where_filter_intersection,
+                filter_intersection=query_level_filter_input.where_filter_intersection,
                 filter_spec_resolution_lookup=filter_spec_lookup,
             ),
             resolution_dag=resolution_dag,

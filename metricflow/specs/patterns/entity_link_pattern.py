@@ -5,12 +5,15 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, List, Optional, Sequence, Tuple
 
+from dbt_semantic_interfaces.naming.keywords import DUNDER
 from dbt_semantic_interfaces.references import EntityReference
 from dbt_semantic_interfaces.type_enums import TimeGranularity
 from dbt_semantic_interfaces.type_enums.date_part import DatePart
 from more_itertools import is_sorted
 from typing_extensions import override
 
+from metricflow.collection_helpers.pretty_print import mf_pformat
+from metricflow.query.similarity import top_fuzzy_matches
 from metricflow.specs.patterns.spec_pattern import SpecPattern
 from metricflow.specs.specs import InstanceSpec, InstanceSpecSet, LinkableInstanceSpec
 
@@ -51,6 +54,9 @@ class EntityLinkPatternParameterSet:
     time_granularity: Optional[TimeGranularity] = None
     date_part: Optional[DatePart] = None
 
+    # The input string for generating suggestions in error messages.
+    input_str: Optional[str] = None
+
     @staticmethod
     def from_parameters(  # noqa: D
         fields_to_compare: Sequence[ParameterSetField],
@@ -58,6 +64,7 @@ class EntityLinkPatternParameterSet:
         entity_links: Optional[Sequence[EntityReference]] = None,
         time_granularity: Optional[TimeGranularity] = None,
         date_part: Optional[DatePart] = None,
+        input_str: Optional[str] = None,
     ) -> EntityLinkPatternParameterSet:
         return EntityLinkPatternParameterSet(
             fields_to_compare=tuple(sorted(fields_to_compare)),
@@ -65,6 +72,7 @@ class EntityLinkPatternParameterSet:
             entity_links=tuple(entity_links) if entity_links is not None else None,
             time_granularity=time_granularity,
             date_part=date_part,
+            input_str=input_str,
         )
 
     def __post_init__(self) -> None:
@@ -94,7 +102,7 @@ class EntityLinkPattern(SpecPattern):
         # Using some Python introspection magic to figure out specs that match the listed fields.
         keys_to_check = set(field_to_compare.value for field_to_compare in self.parameter_set.fields_to_compare)
         # Checks that EntityLinkPatternParameterSetField is valid wrt to the parameter set.
-        parameter_set_values = tuple(getattr(self.parameter_set, key_to_check) for key_to_check in keys_to_check)
+        parameter_set_values = tuple(getattr(self.parameter_set, key_to_check, None) for key_to_check in keys_to_check)
 
         for spec in filtered_candidate_specs:
             spec_values = tuple(getattr(spec, key_to_check, None) for key_to_check in keys_to_check)
@@ -102,3 +110,39 @@ class EntityLinkPattern(SpecPattern):
                 matching_specs.append(spec)
 
         return matching_specs
+
+    @staticmethod
+    def _parameter_set_to_similarity_str(parameter_set: EntityLinkPatternParameterSet) -> str:
+        return DUNDER.join(str(getattr(parameter_set, field.value, None)) for field in ParameterSetField)
+
+    @staticmethod
+    def _spec_to_similarity_str(spec: InstanceSpec) -> str:
+        return DUNDER.join(str(getattr(spec, field.value, None)) for field in ParameterSetField)
+
+    @override
+    def partially_match(self, candidate_specs: Sequence[InstanceSpec], max_items: int) -> Sequence[InstanceSpec]:
+        similarity_str_to_spec = {EntityLinkPattern._spec_to_similarity_str(spec): spec for spec in candidate_specs}
+        parameter_set_similarity_str = EntityLinkPattern._parameter_set_to_similarity_str(self.parameter_set)
+
+        matches = top_fuzzy_matches(
+            item=parameter_set_similarity_str,
+            candidate_items=tuple(similarity_str_to_spec.keys()),
+            max_matches=max_items,
+        )
+        logger.error(f"Matches are :\n{mf_pformat(matches)}")
+
+        top_similarity_strs = tuple(
+            scored_item.item_str
+            for scored_item in top_fuzzy_matches(
+                item=parameter_set_similarity_str,
+                candidate_items=tuple(similarity_str_to_spec.keys()),
+                max_matches=max_items,
+            )
+        )
+
+        return tuple(similarity_str_to_spec[similarity_str] for similarity_str in top_similarity_strs)
+
+    @property
+    @override
+    def input_obj_str(self) -> Optional[str]:
+        return self.parameter_set.input_str
