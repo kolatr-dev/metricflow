@@ -50,7 +50,6 @@ class ResolverInputForMetric(MetricFlowQueryResolverInput):
     def input_pattern_description(self) -> InputPatternDescription:
         return InputPatternDescription(
             naming_scheme=self.naming_scheme,
-            spec_pattern=self.spec_pattern,
         )
 
 
@@ -72,7 +71,6 @@ class ResolverInputForGroupByItem(MetricFlowQueryResolverInput):
     def input_pattern_description(self) -> InputPatternDescription:
         return InputPatternDescription(
             naming_scheme=self.input_obj_naming_scheme,
-            spec_pattern=self.spec_pattern,
         )
 
 

@@ -5,12 +5,11 @@ from dataclasses import dataclass
 from typing import Optional
 
 from metricflow.naming.naming_scheme import QueryItemNamingScheme
-from metricflow.specs.patterns.spec_pattern import SpecPattern
 
 
 @dataclass(frozen=True)
 class InputPatternDescription:
-    """Describes the pattern / naming scheme associated with a query input.
+    """Describes the naming scheme used to generate a query input.
 
     Some query inputs (e.g. group_by_names=['listing__county']) are converted into spec patterns through a naming
     scheme. It's useful in some cases to know the naming scheme that was used to generate the spec pattern (e.g. when
@@ -18,7 +17,6 @@ class InputPatternDescription:
     """
 
     naming_scheme: QueryItemNamingScheme
-    spec_pattern: SpecPattern
 
 
 class MetricFlowQueryResolverInput(ABC):
