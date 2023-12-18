@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Sequence
+from typing import Optional, Sequence
 
 from metricflow.specs.specs import InstanceSpec
 
@@ -20,3 +20,18 @@ class SpecPattern(ABC):
     def matches_any(self, candidate_specs: Sequence[InstanceSpec]) -> bool:
         """Returns true if this spec matches any of the given specs."""
         return len(self.match(candidate_specs)) > 0
+
+    def partially_match(self, candidate_specs: Sequence[InstanceSpec], max_items: int) -> Sequence[InstanceSpec]:
+        """For generating suggestions, return the specs that most closely match this pattern.
+
+        The specs are returned in the order of closeness, with the closest matches first.
+        """
+        return self.match(candidate_specs)[:max_items]
+
+    @property
+    def input_obj_str(self) -> Optional[str]:
+        """If this pattern was generated from user input, return the string associated with the input.
+
+        This is used for generating suggestions via edit distance for error messages.
+        """
+        return None

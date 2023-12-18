@@ -149,7 +149,7 @@ class _ResolveWhereFilterSpecVisitor(GroupByItemResolutionNodeVisitor[FilterSpec
             group_by_items_in_filters.append(
                 GroupByItemInWhereFilter(
                     call_parameter_set=dimension_call_parameter_set,
-                    input_str=ObjectBuilderNameConverter.input_str_from_dimension_call_parameter_set(
+                    object_builder_str=ObjectBuilderNameConverter.input_str_from_dimension_call_parameter_set(
                         dimension_call_parameter_set
                     ),
                     spec_pattern=DimensionPattern.from_call_parameter_set(dimension_call_parameter_set),
@@ -170,7 +170,7 @@ class _ResolveWhereFilterSpecVisitor(GroupByItemResolutionNodeVisitor[FilterSpec
             group_by_items_in_filters.append(
                 GroupByItemInWhereFilter(
                     call_parameter_set=time_dimension_call_parameter_set,
-                    input_str=ObjectBuilderNameConverter.input_str_from_time_dimension_call_parameter_set(
+                    object_builder_str=ObjectBuilderNameConverter.input_str_from_time_dimension_call_parameter_set(
                         time_dimension_call_parameter_set
                     ),
                     spec_pattern=TimeDimensionPattern.from_call_parameter_set(time_dimension_call_parameter_set),
@@ -191,7 +191,7 @@ class _ResolveWhereFilterSpecVisitor(GroupByItemResolutionNodeVisitor[FilterSpec
             group_by_items_in_filters.append(
                 GroupByItemInWhereFilter(
                     call_parameter_set=entity_call_parameter_set,
-                    input_str=ObjectBuilderNameConverter.input_str_from_entity_call_parameter_set(
+                    object_builder_str=ObjectBuilderNameConverter.input_str_from_entity_call_parameter_set(
                         entity_call_parameter_set
                     ),
                     spec_pattern=EntityPattern.from_call_parameter_set(entity_call_parameter_set),
@@ -304,12 +304,14 @@ class _ResolveWhereFilterSpecVisitor(GroupByItemResolutionNodeVisitor[FilterSpec
         )
         non_parsable_resolutions: List[NonParsableFilterResolution] = []
         filter_call_parameter_sets_to_merge: List[FilterCallParameterSets] = []
+
         for where_filter in where_filter_intersection.where_filters:
             try:
                 filter_call_parameter_sets = where_filter.call_parameter_sets
             except Exception as e:
                 non_parsable_resolutions.append(
                     NonParsableFilterResolution(
+                        filter_location_path=resolution_path,
                         where_filter_intersection=where_filter_intersection,
                         issue_set=MetricFlowQueryResolutionIssueSet.from_issue(
                             WhereFilterParsingIssue.from_parameters(
@@ -334,21 +336,29 @@ class _ResolveWhereFilterSpecVisitor(GroupByItemResolutionNodeVisitor[FilterSpec
             resolved_spec_lookup_so_far=resolved_spec_lookup_so_far,
         ):
             group_by_item_resolution = group_by_item_resolver.resolve_matching_item_for_filters(
+                input_str=group_by_item_in_where_filter.object_builder_str,
                 spec_pattern=group_by_item_in_where_filter.spec_pattern,
                 resolution_node=current_node,
             )
-
+            # The paths in the issue set are generated relative to the current node. To give the paths relative to the
+            # resolution_path, we have to add nodes from the resolution path. e.g. if the current node is B, and the
+            # resolution path is [A, B], an issue might have the relative path [B, C]. The join those paths to produce
+            # [A, B, C], the path prefix should be [A].
+            path_prefix = MetricFlowQueryResolutionPath(
+                resolution_path_nodes=resolution_path.resolution_path_nodes[:-1]
+            )
             resolutions.append(
                 FilterSpecResolution(
                     lookup_key=ResolvedSpecLookUpKey(
                         filter_location=filter_location,
                         call_parameter_set=group_by_item_in_where_filter.call_parameter_set,
                     ),
-                    resolution_path=resolution_path,
+                    filter_location_path=resolution_path,
                     resolved_spec=group_by_item_resolution.spec,
                     where_filter_intersection=where_filter_intersection,
                     spec_pattern=group_by_item_in_where_filter.spec_pattern,
-                    issue_set=group_by_item_resolution.issue_set,
+                    issue_set=group_by_item_resolution.issue_set.with_path_prefix(path_prefix),
+                    object_builder_str=group_by_item_in_where_filter.object_builder_str,
                 )
             )
 
