@@ -1095,20 +1095,19 @@ class DataflowPlanBuilder:
         # Even if the measure is configured to join to time spine, if there's no agg_time_dimension in the query,
         # there's no need to join to the time spine since all time will be aggregated.
         after_aggregation_time_spine_join_description = None
-        if input_measure.join_to_timespine:
-            if (
-                len(
-                    queried_linkable_specs.included_agg_time_dimension_specs_for_measure(
-                        measure_reference=measure_spec.reference, semantic_model_lookup=self._semantic_model_lookup
-                    )
+        if input_measure.join_to_timespine and (
+            len(
+                queried_linkable_specs.included_agg_time_dimension_specs_for_measure(
+                    measure_reference=measure_spec.reference, semantic_model_lookup=self._semantic_model_lookup
                 )
-                > 0
-            ):
-                after_aggregation_time_spine_join_description = JoinToTimeSpineDescription(
-                    join_type=SqlJoinType.LEFT_OUTER,
-                    offset_window=None,
-                    offset_to_grain=None,
-                )
+            )
+            > 0
+        ):
+            after_aggregation_time_spine_join_description = JoinToTimeSpineDescription(
+                join_type=SqlJoinType.LEFT_OUTER,
+                offset_window=None,
+                offset_to_grain=None,
+            )
 
         return MetricInputMeasureSpec(
             measure_spec=measure_spec,
@@ -1448,10 +1447,23 @@ class DataflowPlanBuilder:
                 offset_window=after_aggregation_time_spine_join_description.offset_window,
                 offset_to_grain=after_aggregation_time_spine_join_description.offset_to_grain,
             )
+
             # Since new rows might have been added due to time spine join, apply constraints again here.
-            if len(metric_input_measure_spec.filter_specs) > 0:
-                output_node = WhereConstraintNode(parent_node=output_node, where_constraint=merged_where_filter_spec)
-            if time_range_constraint is not None:
+            # Only apply filters for specs that are also in the queried specs, since those are the only ones that might have
+            # changed after the time spine join.
+            queried_filter_specs = [
+                filter_spec
+                for filter_spec in metric_input_measure_spec.filter_specs
+                if filter_spec.linkable_spec_set.is_subset_of(queried_linkable_specs)
+            ]
+            if len(queried_filter_specs) > 0:
+                output_node = WhereConstraintNode(
+                    parent_node=output_node, where_constraint=WhereFilterSpec.merge_iterable(queried_filter_specs)
+                )
+
+            # TODO: this will break if you query by agg_time_dimension but apply a time constraint on metric_time.
+            # To fix when enabling time range constraints for agg_time_dimension.
+            if queried_agg_time_dimension_specs and time_range_constraint is not None:
                 output_node = ConstrainTimeRangeNode(
                     parent_node=output_node, time_range_constraint=time_range_constraint
                 )

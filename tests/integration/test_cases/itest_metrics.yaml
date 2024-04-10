@@ -2047,3 +2047,68 @@ integration_test:
       ) c ON a.listing_id = c.listing_id
     )
     WHERE listing__bookings > 2 AND listing__bookers > 1
+---
+integration_test:
+  name: simple_join_to_time_spine_with_filters
+  description: Test a simple metric that joins to time spine, but doesn't fill nulls, queried with a filter
+  model: SIMPLE_MODEL
+  metrics: ["bookings_join_to_time_spine"]
+  group_by_objs: [{"name": "metric_time"}]
+  where_filter:  "{{ render_dimension_template('booking__is_instant') }}" # TODO: add another filter that SHOULD be applied twice
+  time_constraint: ["2020-01-03", "2020-01-03"]
+  check_query: |
+    SELECT
+      subq_5.ds AS metric_time__day
+      , subq_3.bookings AS bookings_join_to_time_spine
+    FROM {{ source_schema }}.mf_time_spine subq_5
+    LEFT JOIN (
+      SELECT
+        {{ render_date_trunc("ds", TimeGranularity.DAY) }} AS metric_time__day
+        , SUM(1) AS bookings
+      FROM {{ source_schema }}.fct_bookings
+      WHERE is_instant
+        AND {{ render_between_time_constraint("metric_time__day", "2020-01-03", "2020-01-03") }}
+      GROUP BY
+        1
+    ) subq_3
+    ON
+      subq_5.ds = subq_3.metric_time__day
+    WHERE {{ render_between_time_constraint("ds", "2020-01-03", "2020-01-03") }}
+---
+integration_test:
+  name: join_to_time_spine_with_time_constraint
+  description: Test join to time spine with time constraint that isn't in group by
+  model: SIMPLE_MODEL
+  metrics: ["bookings_join_to_time_spine"]
+  group_by_objs: [{"name": "metric_time"}]
+  time_constraint: ["2020-01-03", "2020-01-03"]
+  check_query: |
+    SELECT
+      subq_5.ds AS metric_time__day
+      , subq_3.bookings AS bookings_join_to_time_spine
+    FROM {{ source_schema }}.mf_time_spine subq_5
+    LEFT JOIN (
+      SELECT
+        {{ render_date_trunc("ds", TimeGranularity.DAY) }} AS metric_time__day
+        , SUM(1) AS bookings
+      FROM {{ source_schema }}.fct_bookings
+      WHERE is_instant
+        AND {{ render_between_time_constraint("metric_time__day", "2020-01-03", "2020-01-03") }}
+      GROUP BY
+        1
+    ) subq_3
+    ON
+      subq_5.ds = subq_3.metric_time__day
+    WHERE {{ render_between_time_constraint("metric_time__day", "2020-01-03", "2020-01-03") }}
+---
+integration_test:
+  name: join_to_time_spine_with_time_constraint_not_in_query
+  description: Test join to time spine with time constraint that isn't in group by. Should skip both time spine join and second time constraint.
+  model: SIMPLE_MODEL
+  metrics: ["bookings_join_to_time_spine"]
+  time_constraint: ["2020-01-03", "2020-01-03"]
+  check_query: |
+    SELECT
+      SUM(1) AS bookings_join_to_time_spine
+    FROM {{ source_schema }}.fct_bookings
+    WHERE {{ render_between_time_constraint("metric_time__day", "2020-01-03", "2020-01-03") }}

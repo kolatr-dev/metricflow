@@ -31,19 +31,10 @@
                 <WhereConstraintNode>
                     <!-- description = 'Constrain Output with WHERE' -->
                     <!-- node_id = NodeId(id_str='wcc_1') -->
-                    <!-- where_condition =                                -->
-                    <!--   WhereFilterSpec(                               -->
-                    <!--     where_sql="metric_time__day = '2020-01-01'", -->
-                    <!--     bind_parameters=SqlBindParameters(),         -->
-                    <!--     linkable_spec_set=LinkableSpecSet(           -->
-                    <!--       time_dimension_specs=(                     -->
-                    <!--         TimeDimensionSpec(                       -->
-                    <!--           element_name='metric_time',            -->
-                    <!--           time_granularity=DAY,                  -->
-                    <!--         ),                                       -->
-                    <!--       ),                                         -->
-                    <!--     ),                                           -->
-                    <!--   )                                              -->
+                    <!-- where_condition =                                                                                -->
+                    <!--   LinkableSpecSet(                                                                               -->
+                    <!--     time_dimension_specs=(TimeDimensionSpec(element_name='metric_time', time_granularity=DAY),), -->
+                    <!--   )                                                                                              -->
                     <JoinToTimeSpineNode>
                         <!-- description = 'Join to Time Spine Dataset' -->
                         <!-- node_id = NodeId(id_str='jts_0') -->

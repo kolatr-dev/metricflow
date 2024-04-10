@@ -46,3 +46,6 @@ def test_simple_join_to_time_spine(  # noqa: D103
         sql_client=sql_client,
         node=dataflow_plan.sink_output_nodes[0].parent_node,
     )
+
+
+# TODO: copy examples from integration tests

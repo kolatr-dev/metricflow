@@ -1319,3 +1319,32 @@ def test_metric_in_metric_where_filter(
         mf_test_configuration=mf_test_configuration,
         dag_graph=dataflow_plan,
     )
+
+
+def test_configured_join_to_time_spine_with_filter(
+    request: FixtureRequest,
+    mf_test_configuration: MetricFlowTestConfiguration,
+    dataflow_plan_builder: DataflowPlanBuilder,
+    query_parser: MetricFlowQueryParser,
+    create_source_tables: bool,
+) -> None:
+    """Test querying a metric that has a metric in its where filter."""
+    query_spec = query_parser.parse_and_validate_query(
+        metric_names=("bookings_join_to_time_spine",),
+        group_by_names=("metric_time",),
+        where_constraint_str="{{ Dimension('booking__is_instant') }}",
+    )
+    dataflow_plan = dataflow_plan_builder.build_plan(query_spec)
+
+    assert_plan_snapshot_text_equal(
+        request=request,
+        mf_test_configuration=mf_test_configuration,
+        plan=dataflow_plan,
+        plan_snapshot_text=dataflow_plan.structure_text(),
+    )
+
+    display_graph_if_requested(
+        request=request,
+        mf_test_configuration=mf_test_configuration,
+        dag_graph=dataflow_plan,
+    )
