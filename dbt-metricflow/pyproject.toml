@@ -32,6 +32,9 @@ dependencies = [
 "Source Code" = "https://github.com/dbt-labs/metricflow/tree/main/dbt-metricflow"
 
 [project.optional-dependencies]
+clickhouse = [
+  "dbt-clickhouse~=1.7.6"
+]
 bigquery = [
   "dbt-bigquery~=1.7.0"
 ]
