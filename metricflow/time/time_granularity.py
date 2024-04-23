@@ -151,12 +151,12 @@ class ISOWeekDay(ExtendedEnum):
     @property
     def is_week_start(self) -> bool:
         """Return comparison of instance value against ISO standard start of week (Monday)."""
-        return self is ISOWeekDay.MONDAY
+        return self is ISOWeekDay.SUNDAY
 
     @property
     def is_week_end(self) -> bool:
         """Return comparison of instance value against ISO standard end of week (Sunday)."""
-        return self is ISOWeekDay.SUNDAY
+        return self is ISOWeekDay.SATURDAY
 
     @property
     def pandas_value(self) -> int:
