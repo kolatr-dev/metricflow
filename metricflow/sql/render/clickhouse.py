@@ -15,6 +15,7 @@ from metricflow.sql.render.expr_renderer import (
 from metricflow.sql.render.sql_plan_renderer import DefaultSqlQueryPlanRenderer
 from metricflow.sql.sql_bind_parameters import SqlBindParameters
 from metricflow.sql.sql_exprs import (
+    SqlDateTruncExpression,
     SqlGenerateUuidExpression,
     SqlPercentileExpression,
     SqlPercentileFunctionType,
@@ -44,6 +45,20 @@ class ClickhouseSqlExpressionRenderer(DefaultSqlExpressionRenderer):
         return SqlExpressionRenderResult(
             sql=f"DATE_SUB(CAST({column.sql} AS {self.timestamp_data_type}), INTERVAL {node.count} {node.granularity.value})",
             bind_parameters=column.bind_parameters,
+        )
+
+    @override
+    def visit_date_trunc_expr(self, node: SqlDateTruncExpression) -> SqlExpressionRenderResult:
+        """Render DATE_TRUNC for Clickhouse, which uses toStartOfWeek instead."""
+        arg_rendered = self.render_sql_expr(node.arg)
+
+        if node.time_granularity == TimeGranularity.WEEK:
+            sql = f"toStartOf{node.time_granularity.value.upper()}({arg_rendered.sql}, 2)"
+        else:
+            sql = f"toStartOf{node.time_granularity.value.upper()}({arg_rendered.sql})"
+        return SqlExpressionRenderResult(
+            sql=sql,
+            bind_parameters=arg_rendered.bind_parameters,
         )
 
     @override
