@@ -38,17 +38,12 @@ class ClickhouseSqlExpressionRenderer(DefaultSqlExpressionRenderer):
 
     @override
     def visit_time_delta_expr(self, node: SqlSubtractTimeIntervalExpression) -> SqlExpressionRenderResult:
-        """Render time delta operations for ClickhouseQL, which needs custom support for quarterly granularity."""
-        arg_rendered = node.arg.accept(self)
+        """Render time delta for BigQuery, which requires ISO prefixing for the WEEK granularity value."""
+        column = node.arg.accept(self)
 
-        count = node.count
-        granularity = node.granularity
-        if granularity == TimeGranularity.QUARTER:
-            granularity = TimeGranularity.MONTH
-            count *= 3
         return SqlExpressionRenderResult(
-            sql=f"{arg_rendered.sql} - MAKE_INTERVAL({granularity.value}s => {count})",
-            bind_parameters=arg_rendered.bind_parameters,
+            sql=f"DATE_SUB(CAST({column.sql} AS {self.timestamp_data_type}), INTERVAL {node.count} {node.granularity.value})",
+            bind_parameters=column.bind_parameters,
         )
 
     @override
