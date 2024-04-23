@@ -52,10 +52,12 @@ class ClickhouseSqlExpressionRenderer(DefaultSqlExpressionRenderer):
         """Render DATE_TRUNC for Clickhouse, which uses toStartOfWeek instead."""
         arg_rendered = self.render_sql_expr(node.arg)
 
+        sentence_case_granularity = node.time_granularity.value.capitalize()
+
         if node.time_granularity == TimeGranularity.WEEK:
-            sql = f"toStartOf{node.time_granularity.value.upper()}({arg_rendered.sql}, 2)"
+            sql = f"toStartOf{sentence_case_granularity}({arg_rendered.sql}, 2)"
         else:
-            sql = f"toStartOf{node.time_granularity.value.upper()}({arg_rendered.sql})"
+            sql = f"toStartOf{sentence_case_granularity}({arg_rendered.sql})"
         return SqlExpressionRenderResult(
             sql=sql,
             bind_parameters=arg_rendered.bind_parameters,
