@@ -7,13 +7,34 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional, Sequence, Tuple
 
-import pandas as pd
 from dbt_semantic_interfaces.implementations.elements.dimension import PydanticDimensionTypeParams
 from dbt_semantic_interfaces.implementations.filters.where_filter import PydanticWhereFilter
 from dbt_semantic_interfaces.references import EntityReference, MeasureReference, MetricReference
 from dbt_semantic_interfaces.type_enums import DimensionType
+from metricflow_semantics.dag.sequential_id import SequentialIdGenerator
+from metricflow_semantics.errors.error_classes import ExecutionException
+from metricflow_semantics.filters.time_constraint import TimeRangeConstraint
+from metricflow_semantics.mf_logging.formatting import indent
+from metricflow_semantics.mf_logging.pretty_print import mf_pformat
+from metricflow_semantics.model.linkable_element_property import LinkableElementProperty
+from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
+from metricflow_semantics.model.semantics.linkable_element import (
+    LinkableDimension,
+)
+from metricflow_semantics.model.semantics.semantic_model_lookup import SemanticModelLookup
+from metricflow_semantics.naming.linkable_spec_name import StructuredLinkableSpecName
+from metricflow_semantics.protocols.query_parameter import GroupByParameter, MetricQueryParameter, OrderByQueryParameter
+from metricflow_semantics.query.query_exceptions import InvalidQueryException
+from metricflow_semantics.query.query_parser import MetricFlowQueryParser
+from metricflow_semantics.random_id import random_id
+from metricflow_semantics.specs.column_assoc import ColumnAssociationResolver
+from metricflow_semantics.specs.dunder_column_association_resolver import DunderColumnAssociationResolver
+from metricflow_semantics.specs.query_param_implementations import SavedQueryParameter
+from metricflow_semantics.specs.query_spec import MetricFlowQuerySpec
+from metricflow_semantics.specs.spec_set import InstanceSpecSet
+from metricflow_semantics.time.time_source import TimeSource
 
-from metricflow.dag.sequential_id import SequentialIdGenerator
+from metricflow.data_table.mf_table import MetricFlowDataTable
 from metricflow.dataflow.builder.dataflow_plan_builder import DataflowPlanBuilder
 from metricflow.dataflow.builder.node_data_set import DataflowPlanNodeOutputDataSetResolver
 from metricflow.dataflow.builder.source_node import SourceNodeBuilder
@@ -21,42 +42,24 @@ from metricflow.dataflow.dataflow_plan import DataflowPlan
 from metricflow.dataflow.optimizer.source_scan.source_scan_optimizer import (
     SourceScanOptimizer,
 )
-from metricflow.dataflow.sql_table import SqlTable
 from metricflow.dataset.convert_semantic_model import SemanticModelToDataSetConverter
-from metricflow.dataset.dataset import DataSet
+from metricflow.dataset.dataset_classes import DataSet
 from metricflow.dataset.semantic_model_adapter import SemanticModelDataSet
 from metricflow.engine.models import Dimension, Entity, Measure, Metric, SavedQuery
 from metricflow.engine.time_source import ServerTimeSource
-from metricflow.errors.errors import ExecutionException
-from metricflow.execution.execution_plan import ExecutionPlan, SqlQuery
-from metricflow.execution.executor import SequentialPlanExecutor
-from metricflow.filters.time_constraint import TimeRangeConstraint
-from metricflow.mf_logging.formatting import indent
-from metricflow.mf_logging.pretty_print import mf_pformat
-from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
-from metricflow.model.semantics.linkable_element_properties import (
-    LinkableElementProperties,
-)
-from metricflow.model.semantics.linkable_spec_resolver import LinkableDimension
-from metricflow.model.semantics.semantic_model_lookup import SemanticModelLookup
-from metricflow.naming.linkable_spec_name import StructuredLinkableSpecName
-from metricflow.plan_conversion.column_resolver import DunderColumnAssociationResolver
-from metricflow.plan_conversion.dataflow_to_execution import (
+from metricflow.execution.convert_to_execution_plan import ConvertToExecutionPlanResult
+from metricflow.execution.dataflow_to_execution import (
     DataflowToExecutionPlanConverter,
 )
+from metricflow.execution.execution_plan import ExecutionPlan, SqlQuery
+from metricflow.execution.executor import SequentialPlanExecutor
 from metricflow.plan_conversion.dataflow_to_sql import DataflowToSqlQueryPlanConverter
-from metricflow.protocols.query_parameter import GroupByParameter, MetricQueryParameter, OrderByQueryParameter
+from metricflow.plan_conversion.time_spine import TimeSpineSource
 from metricflow.protocols.sql_client import SqlClient
-from metricflow.query.query_exceptions import InvalidQueryException
-from metricflow.query.query_parser import MetricFlowQueryParser
-from metricflow.random_id import random_id
-from metricflow.specs.column_assoc import ColumnAssociationResolver
-from metricflow.specs.query_param_implementations import SavedQueryParameter
-from metricflow.specs.specs import InstanceSpecSet, MetricFlowQuerySpec
 from metricflow.sql.optimizer.optimization_levels import SqlQueryOptimizationLevel
+from metricflow.sql.sql_table import SqlTable
 from metricflow.telemetry.models import TelemetryLevel
 from metricflow.telemetry.reporter import TelemetryReporter, log_call
-from metricflow.time.time_source import TimeSource
 
 logger = logging.getLogger(__name__)
 _telemetry_reporter = TelemetryReporter(report_levels_higher_or_equal_to=TelemetryLevel.USAGE)
@@ -93,7 +96,7 @@ class MetricFlowQueryRequest:
     where_constraint: A SQL string using group by names that can be used like a where clause on the output data.
     order_by_names: metric and group by names to order by. A "-" can be used to specify reverse order e.g. "-ds".
     order_by: metric, dimension, or entity objects to order by.
-    output_table: If specified, output the result data to this table instead of a result dataframe.
+    output_table: If specified, output the result data to this table instead of a result data_table.
     sql_optimization_level: The level of optimization for the generated SQL.
     query_type: Type of MetricFlow query.
     """
@@ -111,12 +114,11 @@ class MetricFlowQueryRequest:
     order_by_names: Optional[Sequence[str]] = None
     order_by: Optional[Sequence[OrderByQueryParameter]] = None
     min_max_only: bool = False
-    output_table: Optional[str] = None
     sql_optimization_level: SqlQueryOptimizationLevel = SqlQueryOptimizationLevel.O4
     query_type: MetricFlowQueryType = MetricFlowQueryType.METRIC
 
     @staticmethod
-    def create_with_random_request_id(  # noqa: D
+    def create_with_random_request_id(  # noqa: D102
         saved_query_name: Optional[str] = None,
         metric_names: Optional[Sequence[str]] = None,
         metrics: Optional[Sequence[MetricQueryParameter]] = None,
@@ -128,7 +130,6 @@ class MetricFlowQueryRequest:
         where_constraint: Optional[str] = None,
         order_by_names: Optional[Sequence[str]] = None,
         order_by: Optional[Sequence[OrderByQueryParameter]] = None,
-        output_table: Optional[str] = None,
         sql_optimization_level: SqlQueryOptimizationLevel = SqlQueryOptimizationLevel.O4,
         query_type: MetricFlowQueryType = MetricFlowQueryType.METRIC,
         min_max_only: bool = False,
@@ -146,7 +147,6 @@ class MetricFlowQueryRequest:
             where_constraint=where_constraint,
             order_by_names=order_by_names,
             order_by=order_by,
-            output_table=output_table,
             sql_optimization_level=sql_optimization_level,
             query_type=query_type,
             min_max_only=min_max_only,
@@ -154,13 +154,13 @@ class MetricFlowQueryRequest:
 
 
 @dataclass(frozen=True)
-class MetricFlowQueryResult:  # noqa: D
+class MetricFlowQueryResult:
     """The result of a query and context on how it was generated."""
 
     query_spec: MetricFlowQuerySpec
     dataflow_plan: DataflowPlan
     sql: str
-    result_df: Optional[pd.DataFrame] = None
+    result_df: Optional[MetricFlowDataTable] = None
     result_table: Optional[SqlTable] = None
 
 
@@ -170,21 +170,22 @@ class MetricFlowExplainResult:
 
     query_spec: MetricFlowQuerySpec
     dataflow_plan: DataflowPlan
-    execution_plan: ExecutionPlan
+    convert_to_execution_plan_result: ConvertToExecutionPlanResult
     output_table: Optional[SqlTable] = None
 
     @property
     def rendered_sql(self) -> SqlQuery:
         """Return the SQL query that would be run for the given query."""
-        if len(self.execution_plan.tasks) != 1:
+        execution_plan = self.execution_plan
+        if len(execution_plan.tasks) != 1:
             raise NotImplementedError(
-                f"Multiple tasks in the execution plan not yet supported. Got tasks: {self.execution_plan.tasks}"
+                f"Multiple tasks in the execution plan not yet supported. Got tasks: {execution_plan.tasks}"
             )
 
-        sql_query = self.execution_plan.tasks[0].sql_query
+        sql_query = execution_plan.tasks[0].sql_query
         if not sql_query:
             raise NotImplementedError(
-                f"Execution plan tasks without a SQL query not yet supported. Got tasks: {self.execution_plan.tasks}"
+                f"Execution plan tasks without a SQL query not yet supported. Got tasks: {execution_plan.tasks}"
             )
 
         return sql_query
@@ -202,6 +203,10 @@ class MetricFlowExplainResult:
             ),
             bind_parameters=sql_query.bind_parameters,
         )
+
+    @property
+    def execution_plan(self) -> ExecutionPlan:  # noqa: D102
+        return self.convert_to_execution_plan_result.execution_plan
 
 
 class AbstractMetricFlowEngine(ABC):
@@ -225,7 +230,7 @@ class AbstractMetricFlowEngine(ABC):
 
     @abstractmethod
     def simple_dimensions_for_metrics(
-        self, metric_names: List[str], without_any_property: Sequence[LinkableElementProperties]
+        self, metric_names: List[str], without_any_property: Sequence[LinkableElementProperty]
     ) -> List[Dimension]:
         """Retrieves a list of all common dimensions for metric_names.
 
@@ -284,7 +289,7 @@ class AbstractMetricFlowEngine(ABC):
         pass
 
     @abstractmethod
-    def explain_get_dimension_values(  # noqa: D
+    def explain_get_dimension_values(
         self,
         metric_names: Optional[List[str]] = None,
         metrics: Optional[Sequence[MetricQueryParameter]] = None,
@@ -306,6 +311,11 @@ class AbstractMetricFlowEngine(ABC):
         Returns:
             An object with the rendered SQL and generated plans.
         """
+        pass
+
+    @abstractmethod
+    def list_dimensions(self) -> List[Dimension]:
+        """List all dimensions in the semantic manifest."""
         pass
 
 
@@ -357,7 +367,7 @@ class MetricFlowEngine(AbstractMetricFlowEngine):
             DunderColumnAssociationResolver(semantic_manifest_lookup)
         )
         self._time_source = time_source
-        self._time_spine_source = semantic_manifest_lookup.time_spine_source
+        self._time_spine_source = TimeSpineSource.create_from_manifest(semantic_manifest_lookup.semantic_manifest)
         self._source_data_sets: List[SemanticModelDataSet] = []
         converter = SemanticModelToDataSetConverter(column_association_resolver=self._column_association_resolver)
         for semantic_model in sorted(
@@ -384,6 +394,7 @@ class MetricFlowEngine(AbstractMetricFlowEngine):
             semantic_manifest_lookup=self._semantic_manifest_lookup,
             column_association_resolver=self._column_association_resolver,
             node_output_resolver=node_output_resolver,
+            source_node_builder=source_node_builder,
         )
         self._to_sql_query_plan_converter = DataflowToSqlQueryPlanConverter(
             column_association_resolver=self._column_association_resolver,
@@ -401,17 +412,17 @@ class MetricFlowEngine(AbstractMetricFlowEngine):
         )
 
     @log_call(module_name=__name__, telemetry_reporter=_telemetry_reporter)
-    def query(self, mf_request: MetricFlowQueryRequest) -> MetricFlowQueryResult:  # noqa: D
+    def query(self, mf_request: MetricFlowQueryRequest) -> MetricFlowQueryResult:  # noqa: D102
         logger.info(f"Starting query request:\n{indent(mf_pformat(mf_request))}")
         explain_result = self._create_execution_plan(mf_request)
-        execution_plan = explain_result.execution_plan
+        execution_plan = explain_result.convert_to_execution_plan_result.execution_plan
 
         if len(execution_plan.tasks) != 1:
             raise NotImplementedError("Multiple tasks not yet supported.")
 
         task = execution_plan.tasks[0]
 
-        logger.info(f"Sequentially running tasks in:\n" f"{execution_plan.text_structure()}")
+        logger.info(f"Sequentially running tasks in:\n" f"{execution_plan.structure_text()}")
         execution_results = self._executor.execute_plan(execution_plan)
         logger.info("Finished running tasks in execution plan")
 
@@ -460,7 +471,7 @@ class MetricFlowEngine(AbstractMetricFlowEngine):
                 time_constraint_end=mf_query_request.time_constraint_end,
                 order_by_names=mf_query_request.order_by_names,
                 order_by_parameters=mf_query_request.order_by,
-            )
+            ).query_spec
         else:
             query_spec = self._query_parser.parse_and_validate_query(
                 metric_names=mf_query_request.metric_names,
@@ -474,12 +485,8 @@ class MetricFlowEngine(AbstractMetricFlowEngine):
                 order_by_names=mf_query_request.order_by_names,
                 order_by=mf_query_request.order_by,
                 min_max_only=mf_query_request.min_max_only,
-            )
+            ).query_spec
         logger.info(f"Query spec is:\n{mf_pformat(query_spec)}")
-
-        output_table: Optional[SqlTable] = None
-        if mf_query_request.output_table is not None:
-            output_table = SqlTable.from_string(mf_query_request.output_table)
 
         output_selection_specs: Optional[InstanceSpecSet] = None
         if mf_query_request.query_type == MetricFlowQueryType.DIMENSION_VALUES:
@@ -491,59 +498,34 @@ class MetricFlowEngine(AbstractMetricFlowEngine):
                 time_dimension_specs=query_spec.time_dimension_specs,
             )
 
-        dataflow_plan_optimizer_sets_to_try = (
-            (SourceScanOptimizer(),),
-            (),
-        )
-        dataflow_plan: Optional[DataflowPlan] = None
-        execution_plan: Optional[ExecutionPlan] = None
+        if query_spec.metric_specs:
+            dataflow_plan = self._dataflow_plan_builder.build_plan(
+                query_spec=query_spec,
+                output_selection_specs=output_selection_specs,
+                optimizers=(SourceScanOptimizer(),),
+            )
+        else:
+            dataflow_plan = self._dataflow_plan_builder.build_plan_for_distinct_values(query_spec=query_spec)
 
-        for i, dataflow_plan_optimizer_set in enumerate(dataflow_plan_optimizer_sets_to_try):
-            try:
-                if query_spec.metric_specs:
-                    dataflow_plan = self._dataflow_plan_builder.build_plan(
-                        query_spec=query_spec,
-                        output_sql_table=output_table,
-                        output_selection_specs=output_selection_specs,
-                        optimizers=(SourceScanOptimizer(),),
-                    )
-                else:
-                    dataflow_plan = self._dataflow_plan_builder.build_plan_for_distinct_values(query_spec=query_spec)
+        if len(dataflow_plan.sink_nodes) > 1:
+            raise NotImplementedError(
+                f"Multiple output nodes in the dataflow plan not yet supported. "
+                f"Got tasks: {dataflow_plan.sink_nodes}"
+            )
 
-                if len(dataflow_plan.sink_output_nodes) > 1:
-                    raise NotImplementedError(
-                        f"Multiple output nodes in the dataflow plan not yet supported. "
-                        f"Got tasks: {dataflow_plan.sink_output_nodes}"
-                    )
-
-                execution_plan = self._to_execution_plan_converter.convert_to_execution_plan(dataflow_plan)
-                break
-            except Exception as e:
-                # Exception even if no optimizers were applied, so propagate the exception up.
-                if i == len(dataflow_plan_optimizer_sets_to_try) - 1:
-                    raise e
-
-                logger.exception(
-                    f"Got an exception building an execution plan using a dataflow plan created with optimizers: "
-                    f"{dataflow_plan_optimizer_set}. In case the error was due to the optimizer producing an incorrect"
-                    f"plan, retrying creating the dataflow plan with optimizers: "
-                    f"{dataflow_plan_optimizer_sets_to_try[i+1]}"
-                )
-        assert dataflow_plan is not None
-        assert execution_plan is not None
+        convert_to_execution_plan_result = self._to_execution_plan_converter.convert_to_execution_plan(dataflow_plan)
 
         return MetricFlowExplainResult(
             query_spec=query_spec,
             dataflow_plan=dataflow_plan,
-            execution_plan=execution_plan,
-            output_table=output_table,
+            convert_to_execution_plan_result=convert_to_execution_plan_result,
         )
 
     @log_call(module_name=__name__, telemetry_reporter=_telemetry_reporter)
-    def explain(self, mf_request: MetricFlowQueryRequest) -> MetricFlowExplainResult:  # noqa: D
+    def explain(self, mf_request: MetricFlowQueryRequest) -> MetricFlowExplainResult:  # noqa: D102
         return self._create_execution_plan(mf_request)
 
-    def get_measures_for_metrics(self, metric_names: List[str]) -> List[Measure]:  # noqa: D
+    def get_measures_for_metrics(self, metric_names: List[str]) -> List[Measure]:  # noqa: D102
         metrics = self._semantic_manifest_lookup.metric_lookup.get_metrics(
             metric_references=[MetricReference(element_name=metric_name) for metric_name in metric_names]
         )
@@ -569,18 +551,18 @@ class MetricFlowEngine(AbstractMetricFlowEngine):
                 )
         return list(measures)
 
-    def simple_dimensions_for_metrics(  # noqa: D
+    def simple_dimensions_for_metrics(  # noqa: D102
         self,
         metric_names: List[str],
-        without_any_property: Sequence[LinkableElementProperties] = (
-            LinkableElementProperties.ENTITY,
-            LinkableElementProperties.DERIVED_TIME_GRANULARITY,
-            LinkableElementProperties.LOCAL_LINKED,
+        without_any_property: Sequence[LinkableElementProperty] = (
+            LinkableElementProperty.ENTITY,
+            LinkableElementProperty.DERIVED_TIME_GRANULARITY,
+            LinkableElementProperty.LOCAL_LINKED,
         ),
     ) -> List[Dimension]:
         path_key_to_linkable_dimensions = (
-            self._semantic_manifest_lookup.metric_lookup.linkable_set_for_metrics(
-                metric_references=[MetricReference(element_name=mname) for mname in metric_names],
+            self._semantic_manifest_lookup.metric_lookup.linkable_elements_for_metrics(
+                metric_references=tuple(MetricReference(element_name=mname) for mname in metric_names),
                 without_any_property=frozenset(without_any_property),
             )
         ).path_key_to_linkable_dimensions
@@ -596,10 +578,10 @@ class MetricFlowEngine(AbstractMetricFlowEngine):
                 if linkable_dimension.date_part is not None:
                     continue
 
-                if LinkableElementProperties.METRIC_TIME in linkable_dimension.properties:
+                if LinkableElementProperty.METRIC_TIME in linkable_dimension.properties:
                     metric_time_name = DataSet.metric_time_dimension_name()
                     assert linkable_dimension.element_name == metric_time_name, (
-                        f"{linkable_dimension} has the {LinkableElementProperties.METRIC_TIME}, but the name does not"
+                        f"{linkable_dimension} has the {LinkableElementProperty.METRIC_TIME}, but the name does not"
                         f"match."
                     )
 
@@ -638,18 +620,36 @@ class MetricFlowEngine(AbstractMetricFlowEngine):
                                 semantic_model=semantic_model,
                                 dimension_reference=linkable_dimension.reference,
                             ),
-                            path_key=path_key,
+                            entity_links=path_key.entity_links,
                         )
                     )
         return sorted(dimensions, key=lambda dimension: dimension.qualified_name)
 
-    def entities_for_metrics(self, metric_names: List[str]) -> List[Entity]:  # noqa: D
+    def list_dimensions(self) -> List[Dimension]:  # noqa: D102
+        """Get full dimension object for all dimensions in the semantic manifest."""
+        semantic_model_lookup = self._semantic_manifest_lookup.semantic_model_lookup
+
+        dimensions: List[Dimension] = []
+        for dimension_reference in semantic_model_lookup.get_dimension_references():
+            for semantic_model in semantic_model_lookup.get_semantic_models_for_dimension(dimension_reference):
+                dimensions.append(
+                    Dimension.from_pydantic(
+                        pydantic_dimension=semantic_model_lookup.get_dimension_from_semantic_model(
+                            semantic_model=semantic_model, dimension_reference=dimension_reference
+                        ),
+                        entity_links=(semantic_model_lookup.get_primary_entity_else_error(semantic_model),),
+                    )
+                )
+
+        return dimensions
+
+    def entities_for_metrics(self, metric_names: List[str]) -> List[Entity]:  # noqa: D102
         path_key_to_linkable_entities = (
-            self._semantic_manifest_lookup.metric_lookup.linkable_set_for_metrics(
-                metric_references=[MetricReference(element_name=mname) for mname in metric_names],
+            self._semantic_manifest_lookup.metric_lookup.linkable_elements_for_metrics(
+                metric_references=tuple(MetricReference(element_name=mname) for mname in metric_names),
                 with_any_property=frozenset(
                     {
-                        LinkableElementProperties.ENTITY,
+                        LinkableElementProperty.ENTITY,
                     }
                 ),
             )
@@ -676,7 +676,7 @@ class MetricFlowEngine(AbstractMetricFlowEngine):
         return entities
 
     @log_call(module_name=__name__, telemetry_reporter=_telemetry_reporter)
-    def list_metrics(self) -> List[Metric]:  # noqa: D
+    def list_metrics(self) -> List[Metric]:  # noqa: D102
         metric_references = self._semantic_manifest_lookup.metric_lookup.metric_references
         metrics = self._semantic_manifest_lookup.metric_lookup.get_metrics(metric_references)
         return [
@@ -688,14 +688,14 @@ class MetricFlowEngine(AbstractMetricFlowEngine):
         ]
 
     @log_call(module_name=__name__, telemetry_reporter=_telemetry_reporter)
-    def list_saved_queries(self) -> List[SavedQuery]:  # noqa: D
+    def list_saved_queries(self) -> List[SavedQuery]:  # noqa: D102
         return [
             SavedQuery.from_pydantic(saved_query)
             for saved_query in self._semantic_manifest_lookup.semantic_manifest.saved_queries
         ]
 
     @log_call(module_name=__name__, telemetry_reporter=_telemetry_reporter)
-    def get_dimension_values(  # noqa: D
+    def get_dimension_values(  # noqa: D102
         self,
         metric_names: List[str],
         get_group_by_values: str,
@@ -703,7 +703,7 @@ class MetricFlowEngine(AbstractMetricFlowEngine):
         time_constraint_end: Optional[datetime.datetime] = None,
     ) -> List[str]:
         # Run query
-        query_result = self.query(
+        query_result: MetricFlowQueryResult = self.query(
             MetricFlowQueryRequest.create_with_random_request_id(
                 metric_names=metric_names,
                 group_by_names=[get_group_by_values],
@@ -712,25 +712,13 @@ class MetricFlowEngine(AbstractMetricFlowEngine):
                 query_type=MetricFlowQueryType.DIMENSION_VALUES,
             )
         )
-        result_dataframe = query_result.result_df
-        if result_dataframe is None:
+        if query_result.result_df is None:
             return []
 
-        # Snowflake likes upper-casing things in result output, so we lower-case all names
-        # before operating on the dataframe.
-        metric_names = [metric_name.lower() for metric_name in metric_names]
-        result_dataframe.columns = result_dataframe.columns.str.lower()
-
-        # Get dimension values regardless of input name -> output dimension mapping. This is necessary befcause
-        # granularity adjustments on time dimensions produce different output names for dimension values.
-        # Note: this only works as long as we have exactly one column of group by values
-        # and no other extraneous output columns
-        dim_vals = result_dataframe[result_dataframe.columns[~result_dataframe.columns.isin(metric_names)]].iloc[:, 0]
-
-        return sorted([str(val) for val in dim_vals])
+        return sorted([str(val) for val in query_result.result_df.column_values_iterator(0)])
 
     @log_call(module_name=__name__, telemetry_reporter=_telemetry_reporter)
-    def explain_get_dimension_values(  # noqa: D
+    def explain_get_dimension_values(  # noqa: D102
         self,
         metric_names: Optional[List[str]] = None,
         metrics: Optional[Sequence[MetricQueryParameter]] = None,

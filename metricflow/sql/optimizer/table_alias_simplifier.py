@@ -4,6 +4,7 @@ import logging
 
 from metricflow.sql.optimizer.sql_query_plan_optimizer import SqlQueryPlanOptimizer
 from metricflow.sql.sql_plan import (
+    SqlCreateTableAsNode,
     SqlJoinDescription,
     SqlOrderByDescription,
     SqlQueryPlanNode,
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 class SqlTableAliasSimplifierVisitor(SqlQueryPlanNodeVisitor[SqlQueryPlanNode]):
     """Visits the SQL query plan to see if table aliases can be omitted when rendering column references."""
 
-    def visit_select_statement_node(self, node: SqlSelectStatementNode) -> SqlQueryPlanNode:  # noqa: D
+    def visit_select_statement_node(self, node: SqlSelectStatementNode) -> SqlQueryPlanNode:  # noqa: D102
         # If there is only a single parent, no table aliases are required since there's no ambiguity.
         should_simplify_table_aliases = len(node.parent_nodes) <= 1
 
@@ -68,11 +69,17 @@ class SqlTableAliasSimplifierVisitor(SqlQueryPlanNodeVisitor[SqlQueryPlanNode]):
             distinct=node.distinct,
         )
 
-    def visit_table_from_clause_node(self, node: SqlTableFromClauseNode) -> SqlQueryPlanNode:  # noqa: D
+    def visit_table_from_clause_node(self, node: SqlTableFromClauseNode) -> SqlQueryPlanNode:  # noqa: D102
         return node
 
-    def visit_query_from_clause_node(self, node: SqlSelectQueryFromClauseNode) -> SqlQueryPlanNode:  # noqa: D
+    def visit_query_from_clause_node(self, node: SqlSelectQueryFromClauseNode) -> SqlQueryPlanNode:  # noqa: D102
         return node
+
+    def visit_create_table_as_node(self, node: SqlCreateTableAsNode) -> SqlQueryPlanNode:  # noqa: D102
+        return SqlCreateTableAsNode(
+            sql_table=node.sql_table,
+            parent_node=node.parent_node.accept(self),
+        )
 
 
 class SqlTableAliasSimplifier(SqlQueryPlanOptimizer):
@@ -93,5 +100,5 @@ class SqlTableAliasSimplifier(SqlQueryPlanOptimizer):
     ) b
     """
 
-    def optimize(self, node: SqlQueryPlanNode) -> SqlQueryPlanNode:  # noqa: D
+    def optimize(self, node: SqlQueryPlanNode) -> SqlQueryPlanNode:  # noqa: D102
         return node.accept(SqlTableAliasSimplifierVisitor())

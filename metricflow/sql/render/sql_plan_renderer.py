@@ -4,15 +4,20 @@ import logging
 import textwrap
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from string import Template
 from typing import List, Optional, Sequence, Tuple
+
+from metricflow_semantics.mf_logging.formatting import indent
+from metricflow_semantics.sql.sql_bind_parameters import SqlBindParameters
 
 from metricflow.sql.render.expr_renderer import (
     DefaultSqlExpressionRenderer,
     SqlExpressionRenderer,
     SqlExpressionRenderResult,
 )
-from metricflow.sql.sql_bind_parameters import SqlBindParameters
+from metricflow.sql.render.rendering_constants import SqlRenderingConstants
 from metricflow.sql.sql_plan import (
+    SqlCreateTableAsNode,
     SqlJoinDescription,
     SqlQueryPlan,
     SqlQueryPlanNode,
@@ -27,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class SqlPlanRenderResult:  # noqa: D
+class SqlPlanRenderResult:  # noqa: D101
     # The SQL string that could be run.
     sql: str
     # The execution parameters that should be specified along with the SQL str to execute()
@@ -37,15 +42,15 @@ class SqlPlanRenderResult:  # noqa: D
 class SqlQueryPlanRenderer(SqlQueryPlanNodeVisitor[SqlPlanRenderResult], ABC):
     """Renders SQL plans to a string."""
 
-    def _render_node(self, node: SqlQueryPlanNode) -> SqlPlanRenderResult:  # noqa: D
+    def _render_node(self, node: SqlQueryPlanNode) -> SqlPlanRenderResult:
         return node.accept(self)
 
-    def render_sql_query_plan(self, sql_query_plan: SqlQueryPlan) -> SqlPlanRenderResult:  # noqa: D
+    def render_sql_query_plan(self, sql_query_plan: SqlQueryPlan) -> SqlPlanRenderResult:  # noqa: D102
         return self._render_node(sql_query_plan.render_node)
 
     @property
     @abstractmethod
-    def expr_renderer(self) -> SqlExpressionRenderer:  # noqa: D
+    def expr_renderer(self) -> SqlExpressionRenderer:
         """Return the renderer that this uses to render expressions."""
         pass
 
@@ -65,8 +70,6 @@ class DefaultSqlQueryPlanRenderer(SqlQueryPlanRenderer):
 
     # The renderer that is used to render the SQL expressions.
     EXPR_RENDERER = DefaultSqlExpressionRenderer()
-    # The amount to indent when formatting SQL
-    INDENT = "  "
 
     def _render_select_columns_section(
         self,
@@ -110,9 +113,11 @@ class DefaultSqlQueryPlanRenderer(SqlQueryPlanRenderer):
 
             if first_column:
                 first_column = False
-                select_section_lines.append(f"{self.INDENT}{column_select_str}")
+                select_section_lines.append(indent(column_select_str, indent_prefix=SqlRenderingConstants.INDENT))
             else:
-                select_section_lines.append(f"{self.INDENT}, {column_select_str}")
+                select_section_lines.append(
+                    indent(", " + column_select_str, indent_prefix=SqlRenderingConstants.INDENT)
+                )
 
         return "\n".join(select_section_lines), params
 
@@ -137,7 +142,7 @@ class DefaultSqlQueryPlanRenderer(SqlQueryPlanRenderer):
             from_section_lines.append(f"FROM {from_render_result.sql} {from_source_alias}")
         else:
             from_section_lines.append("FROM (")
-            from_section_lines.append(textwrap.indent(from_render_result.sql, prefix=self.INDENT))
+            from_section_lines.append(indent(from_render_result.sql, indent_prefix=SqlRenderingConstants.INDENT))
             from_section_lines.append(f") {from_source_alias}")
         from_section = "\n".join(from_section_lines)
 
@@ -172,17 +177,22 @@ class DefaultSqlQueryPlanRenderer(SqlQueryPlanRenderer):
                 join_section_lines.append(join_description.join_type.value)
                 join_section_lines.append(
                     textwrap.indent(
-                        f"{right_source_rendered.sql} {join_description.right_source_alias}", prefix=self.INDENT
+                        f"{right_source_rendered.sql} {join_description.right_source_alias}",
+                        prefix=SqlRenderingConstants.INDENT,
                     )
                 )
             else:
                 join_section_lines.append(f"{join_description.join_type.value} (")
-                join_section_lines.append(textwrap.indent(right_source_rendered.sql, prefix=self.INDENT))
+                join_section_lines.append(
+                    textwrap.indent(right_source_rendered.sql, prefix=SqlRenderingConstants.INDENT)
+                )
                 join_section_lines.append(f") {join_description.right_source_alias}")
 
             if on_condition_rendered:
                 join_section_lines.append("ON")
-                join_section_lines.append(textwrap.indent(on_condition_rendered.sql, prefix=self.INDENT))
+                join_section_lines.append(
+                    textwrap.indent(on_condition_rendered.sql, prefix=SqlRenderingConstants.INDENT)
+                )
 
         return "\n".join(join_section_lines), params
 
@@ -204,13 +214,17 @@ class DefaultSqlQueryPlanRenderer(SqlQueryPlanRenderer):
             if first:
                 first = False
                 group_by_section_lines.append("GROUP BY")
-                group_by_section_lines.append(textwrap.indent(group_by_expr_rendered.sql, prefix=self.INDENT))
+                group_by_section_lines.append(
+                    textwrap.indent(group_by_expr_rendered.sql, prefix=SqlRenderingConstants.INDENT)
+                )
             else:
-                group_by_section_lines.append(textwrap.indent(f", {group_by_expr_rendered.sql}", prefix=self.INDENT))
+                group_by_section_lines.append(
+                    textwrap.indent(f", {group_by_expr_rendered.sql}", prefix=SqlRenderingConstants.INDENT)
+                )
 
         return "\n".join(group_by_section_lines), params
 
-    def visit_select_statement_node(self, node: SqlSelectStatementNode) -> SqlPlanRenderResult:  # noqa: D
+    def visit_select_statement_node(self, node: SqlSelectStatementNode) -> SqlPlanRenderResult:  # noqa: D102
         # Keep track of all execution parameters for all expressions
         combined_params = SqlBindParameters()
 
@@ -287,16 +301,36 @@ class DefaultSqlQueryPlanRenderer(SqlQueryPlanRenderer):
             bind_parameters=combined_params,
         )
 
-    def visit_table_from_clause_node(self, node: SqlTableFromClauseNode) -> SqlPlanRenderResult:  # noqa: D
+    def visit_table_from_clause_node(self, node: SqlTableFromClauseNode) -> SqlPlanRenderResult:  # noqa: D102
         return SqlPlanRenderResult(
             sql=node.sql_table.sql,
             bind_parameters=SqlBindParameters(),
         )
 
-    def visit_query_from_clause_node(self, node: SqlSelectQueryFromClauseNode) -> SqlPlanRenderResult:  # noqa: D
+    def visit_query_from_clause_node(self, node: SqlSelectQueryFromClauseNode) -> SqlPlanRenderResult:  # noqa: D102
         return SqlPlanRenderResult(
             sql=node.select_query.rstrip(),
             bind_parameters=SqlBindParameters(),
+        )
+
+    def visit_create_table_as_node(self, node: SqlCreateTableAsNode) -> SqlPlanRenderResult:  # noqa: D102
+        inner_sql_render_result = node.parent_node.accept(self)
+        inner_sql = inner_sql_render_result.sql
+        # Using a substitution since inner_sql can have multiple lines, and then dedent() wouldn't dent due to the
+        # short line.
+        sql = Template(
+            textwrap.dedent(
+                f"""\
+                CREATE {node.sql_table.table_type.value.upper()} {node.sql_table.sql} AS (
+                $inner_sql
+                )
+                """
+            ).rstrip()
+        ).substitute({"inner_sql": indent(inner_sql, indent_prefix=SqlRenderingConstants.INDENT)})
+
+        return SqlPlanRenderResult(
+            sql=sql,
+            bind_parameters=inner_sql_render_result.bind_parameters,
         )
 
     @property

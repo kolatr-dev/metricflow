@@ -12,9 +12,9 @@ import uuid
 from hashlib import sha256
 from typing import Callable, List, Optional, TypeVar
 
+from metricflow_semantics.random_id import random_id
 from typing_extensions import ParamSpec
 
-from metricflow.random_id import random_id
 from metricflow.telemetry.handlers.handlers import (
     TelemetryHandler,
     ToMemoryTelemetryHandler,
@@ -61,7 +61,7 @@ class TelemetryReporter:
         id_str = "_".join([sys.platform, platform.release(), str(uuid.getnode())])
         return sha256(id_str.encode("utf-8")).hexdigest()
 
-    def add_python_log_handler(self) -> None:  # noqa: D
+    def add_python_log_handler(self) -> None:  # noqa: D102
         self._handlers.append(PythonLoggerTelemetryHandler(logger_level=logging.INFO))
 
     def add_test_handler(self) -> None:
@@ -73,7 +73,7 @@ class TelemetryReporter:
         """Used for testing only to verify that the handlers are getting the right events."""
         return self._test_handler
 
-    def log_function_start(  # noqa: D
+    def log_function_start(
         self,
         invocation_id: str,
         module_name: str,
@@ -96,7 +96,7 @@ class TelemetryReporter:
                     ),
                 )
 
-    def log_function_end(  # noqa: D
+    def log_function_end(
         self, invocation_id: str, module_name: str, function_name: str, runtime: float, exception_trace: Optional[str]
     ) -> None:
         """Similar to log_function_end, except adding the duration of the call and exception trace on error."""

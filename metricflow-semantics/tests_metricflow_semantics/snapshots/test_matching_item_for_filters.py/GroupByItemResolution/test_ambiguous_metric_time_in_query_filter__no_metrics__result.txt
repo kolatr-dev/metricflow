@@ -1,0 +1,24 @@
+GroupByItemResolution(
+  spec=TimeDimensionSpec(element_name='metric_time', time_granularity=DAY),
+  linkable_element_set=LinkableElementSet(
+    path_key_to_linkable_dimensions={
+      ElementPathKey(
+        element_name='metric_time',
+        element_type=TIME_DIMENSION,
+        time_granularity=DAY,
+      ): (
+        LinkableDimension(
+          element_name='metric_time',
+          dimension_type=TIME,
+          join_path=SemanticModelJoinPath(
+            left_semantic_model_reference=SemanticModelReference(
+              semantic_model_name='__VIRTUAL__',
+            ),
+          ),
+          properties=frozenset('METRIC_TIME',),
+          time_granularity=DAY,
+        ),
+      ),
+    },
+  ),
+)

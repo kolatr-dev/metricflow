@@ -14,9 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.11"]
+        python-version: ["3.8", "3.12"]
     steps:
-
       - name: Check-out the repo
         uses: actions/checkout@v3
 
@@ -24,6 +23,7 @@ jobs:
         uses: ./.github/actions/run-mf-tests
         with:
           python-version: ${{ matrix.python-version }}
+          make-target: "test-include-slow"
 
   metricflow-unit-tests-postgres:
     name: MetricFlow Tests (PostgreSQL)
@@ -47,10 +47,10 @@ jobs:
       - name: Check-out the repo
         uses: actions/checkout@v3
 
-      - name: Test w/ Python 3.11
+      - name: Test w/ Python 3.12
         uses: ./.github/actions/run-mf-tests
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           make-target: "test-postgresql"
 
   metricflow-unit-tests:
@@ -62,3 +62,25 @@ jobs:
 
       - name: Check success
         run: test ${{ needs.metricflow-unit-tests-duckdb.result }} = 'success' -a ${{ needs.metricflow-unit-tests-postgres.result }} = 'success'
+
+  metricflow-package-tests:
+    name: MetricFlow Packages Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ "3.8", "3.12" ]
+    steps:
+
+      - name: Check-out the repo
+        uses: actions/checkout@v3
+
+      - name: Setup Python ${{ inputs.python-version }} Environment
+        uses: ./.github/actions/setup-python-env
+        with:
+          python-version: "${{ matrix.python-version }}"
+
+      - name: Test `metricflow-semantics` Package
+        run: bash scripts/ci_tests/metricflow_semantics_package_test.sh
+
+      - name: Test `metricflow` Package
+        run: bash scripts/ci_tests/metricflow_package_test.sh

@@ -5,14 +5,13 @@ from typing import List, Optional, Sequence, Tuple
 
 from dbt_semantic_interfaces.protocols.metric import MetricTimeWindow
 from dbt_semantic_interfaces.type_enums.time_granularity import TimeGranularity
+from metricflow_semantics.assert_one_arg import assert_exactly_one_arg_set
+from metricflow_semantics.sql.sql_join_type import SqlJoinType
 
-from metricflow.assert_one_arg import assert_exactly_one_arg_set
-from metricflow.dataflow.dataflow_plan import (
-    JoinConversionEventsNode,
-    JoinDescription,
-    JoinOverTimeRangeNode,
-    JoinToTimeSpineNode,
-)
+from metricflow.dataflow.nodes.join_conversion_events import JoinConversionEventsNode
+from metricflow.dataflow.nodes.join_over_time import JoinOverTimeRangeNode
+from metricflow.dataflow.nodes.join_to_base import JoinDescription
+from metricflow.dataflow.nodes.join_to_time_spine import JoinToTimeSpineNode
 from metricflow.dataset.sql_dataset import SqlDataSet
 from metricflow.plan_conversion.sql_expression_builders import make_coalesced_expr
 from metricflow.sql.sql_exprs import (
@@ -26,7 +25,7 @@ from metricflow.sql.sql_exprs import (
     SqlLogicalOperator,
     SqlSubtractTimeIntervalExpression,
 )
-from metricflow.sql.sql_plan import SqlExpressionNode, SqlJoinDescription, SqlJoinType, SqlSelectStatementNode
+from metricflow.sql.sql_plan import SqlExpressionNode, SqlJoinDescription, SqlSelectStatementNode
 
 
 @dataclass(frozen=True)
@@ -216,7 +215,7 @@ class SqlQueryPlanJoinBuilder:
         )
 
         return SqlQueryPlanJoinBuilder.make_column_equality_sql_join_description(
-            right_source_node=right_data_set.data_set.sql_select_node,
+            right_source_node=right_data_set.data_set.checked_sql_select_node,
             left_source_alias=left_data_set.alias,
             right_source_alias=right_data_set.alias,
             column_equality_descriptions=column_equality_descriptions,
@@ -352,7 +351,7 @@ class SqlQueryPlanJoinBuilder:
                 else equality_exprs[0]
             )
             return SqlJoinDescription(
-                right_source=join_data_set.data_set.sql_select_node,
+                right_source=join_data_set.data_set.checked_sql_select_node,
                 right_source_alias=join_data_set.alias,
                 on_condition=on_condition,
                 join_type=join_type,
@@ -363,7 +362,7 @@ class SqlQueryPlanJoinBuilder:
                 for name in column_names
             ]
             return SqlQueryPlanJoinBuilder.make_column_equality_sql_join_description(
-                right_source_node=join_data_set.data_set.sql_select_node,
+                right_source_node=join_data_set.data_set.checked_sql_select_node,
                 left_source_alias=from_data_set.alias,
                 right_source_alias=join_data_set.alias,
                 column_equality_descriptions=column_equality_descriptions,
@@ -496,7 +495,7 @@ class SqlQueryPlanJoinBuilder:
             window=node.window,
         )
         return SqlQueryPlanJoinBuilder.make_column_equality_sql_join_description(
-            right_source_node=conversion_data_set.data_set.sql_select_node,
+            right_source_node=conversion_data_set.data_set.checked_sql_select_node,
             left_source_alias=base_data_set.alias,
             right_source_alias=conversion_data_set.alias,
             column_equality_descriptions=column_equality_descriptions,
@@ -523,7 +522,7 @@ class SqlQueryPlanJoinBuilder:
         )
 
         return SqlJoinDescription(
-            right_source=metric_data_set.data_set.sql_select_node,
+            right_source=metric_data_set.data_set.checked_sql_select_node,
             right_source_alias=metric_data_set.alias,
             on_condition=cumulative_join_condition,
             join_type=SqlJoinType.INNER,

@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from typing import Dict, Optional, Sequence
+from typing import TYPE_CHECKING, Dict, Optional, Sequence
+
+from metricflow_semantics.mf_logging.runtime import log_block_runtime
+from metricflow_semantics.specs.column_assoc import ColumnAssociationResolver
 
 from metricflow.dataflow.dataflow_plan import (
     DataflowPlanNode,
 )
 from metricflow.dataset.sql_dataset import SqlDataSet
-from metricflow.mf_logging.runtime import log_block_runtime
-from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
 from metricflow.plan_conversion.dataflow_to_sql import DataflowToSqlQueryPlanConverter
-from metricflow.specs.column_assoc import ColumnAssociationResolver
+
+if TYPE_CHECKING:
+    from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
 
 
 class DataflowPlanNodeOutputDataSetResolver(DataflowToSqlQueryPlanConverter):
@@ -38,13 +41,13 @@ class DataflowPlanNodeOutputDataSetResolver(DataflowToSqlQueryPlanConverter):
     generate a set of nodes that already include the multi-hop dimensions available, the join resolution logic becomes
     much simpler. For example, a node like:
 
-    <JoinToBaseOutputNode>
+    <JoinOnEntitiesNode>
         <!-- Join dim_users and dim_devices by device_id -->
         <ReadSqlSourceNode>
           <!-- Read from dim_users to get user_id, device_id -->
         <ReadSqlSourceNodes>
           <!-- Read from dim_devices device_id, platform -->
-    </JoinToBaseOutputNode>
+    </JoinOnEntitiesNode>
 
     would have the dimension user_id__device_id__platform available, so to NodeEvaluatorForLinkableInstances,
     it's the same problem as doing a single-hop join. This simplifies the join resolution logic, though now the input
@@ -55,7 +58,7 @@ class DataflowPlanNodeOutputDataSetResolver(DataflowToSqlQueryPlanConverter):
     another class to have better separation of concerns.
     """
 
-    def __init__(  # noqa: D
+    def __init__(  # noqa: D107
         self,
         column_association_resolver: ColumnAssociationResolver,
         semantic_manifest_lookup: SemanticManifestLookup,
@@ -67,7 +70,7 @@ class DataflowPlanNodeOutputDataSetResolver(DataflowToSqlQueryPlanConverter):
             semantic_manifest_lookup=semantic_manifest_lookup,
         )
 
-    def get_output_data_set(self, node: DataflowPlanNode) -> SqlDataSet:  # noqa: D
+    def get_output_data_set(self, node: DataflowPlanNode) -> SqlDataSet:
         """Cached since this will be called repeatedly during the computation of multiple metrics.
 
         # TODO: The cache needs to be pruned, but has not yet been an issue.

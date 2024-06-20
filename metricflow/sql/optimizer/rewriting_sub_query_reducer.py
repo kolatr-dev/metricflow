@@ -4,7 +4,8 @@ import logging
 from dataclasses import dataclass
 from typing import List, Optional, Sequence, Tuple
 
-from metricflow.mf_logging.formatting import indent
+from metricflow_semantics.mf_logging.formatting import indent
+
 from metricflow.sql.optimizer.sql_query_plan_optimizer import SqlQueryPlanOptimizer
 from metricflow.sql.sql_exprs import (
     SqlColumnAliasReferenceExpression,
@@ -16,6 +17,7 @@ from metricflow.sql.sql_exprs import (
     SqlLogicalOperator,
 )
 from metricflow.sql.sql_plan import (
+    SqlCreateTableAsNode,
     SqlJoinDescription,
     SqlOrderByDescription,
     SqlQueryPlanNode,
@@ -194,7 +196,7 @@ class SqlRewritingSubQueryReducerVisitor(SqlQueryPlanNodeVisitor[SqlQueryPlanNod
             and not node.where
         )
 
-    def _current_node_can_be_reduced(self, node: SqlSelectStatementNode) -> bool:  # noqa: D
+    def _current_node_can_be_reduced(self, node: SqlSelectStatementNode) -> bool:
         """Returns true if the given node can be reduced with the parent node.
 
         Reducing this node means eliminating the SELECT of this node and merging it with the parent SELECT. This
@@ -462,9 +464,9 @@ class SqlRewritingSubQueryReducerVisitor(SqlQueryPlanNodeVisitor[SqlQueryPlanNod
                 SqlJoinDescription(
                     right_source=join_select_node.from_source,
                     right_source_alias=join_select_node.from_source_alias,
-                    on_condition=join_desc.on_condition.rewrite(column_replacements)
-                    if join_desc.on_condition
-                    else None,
+                    on_condition=(
+                        join_desc.on_condition.rewrite(column_replacements) if join_desc.on_condition else None
+                    ),
                     join_type=join_desc.join_type,
                 )
             )
@@ -481,9 +483,9 @@ class SqlRewritingSubQueryReducerVisitor(SqlQueryPlanNodeVisitor[SqlQueryPlanNod
                 SqlJoinDescription(
                     right_source=x.right_source,
                     right_source_alias=x.right_source_alias,
-                    on_condition=x.on_condition.rewrite(column_replacements=column_replacements)
-                    if x.on_condition
-                    else None,
+                    on_condition=(
+                        x.on_condition.rewrite(column_replacements=column_replacements) if x.on_condition else None
+                    ),
                     join_type=x.join_type,
                 )
                 for x in new_join_descs
@@ -511,9 +513,9 @@ class SqlRewritingSubQueryReducerVisitor(SqlQueryPlanNodeVisitor[SqlQueryPlanNod
                 SqlJoinDescription(
                     right_source=x.right_source,
                     right_source_alias=x.right_source_alias,
-                    on_condition=x.on_condition.rewrite(column_replacements=column_replacements)
-                    if x.on_condition
-                    else None,
+                    on_condition=(
+                        x.on_condition.rewrite(column_replacements=column_replacements) if x.on_condition else None
+                    ),
                     join_type=x.join_type,
                 )
                 for x in new_join_descs
@@ -532,7 +534,7 @@ class SqlRewritingSubQueryReducerVisitor(SqlQueryPlanNodeVisitor[SqlQueryPlanNod
             distinct=node.distinct,
         )
 
-    def visit_select_statement_node(self, node: SqlSelectStatementNode) -> SqlQueryPlanNode:  # noqa: D
+    def visit_select_statement_node(self, node: SqlSelectStatementNode) -> SqlQueryPlanNode:  # noqa: D102
         node_with_reduced_parents = self._reduce_parents(node)
 
         if len(node_with_reduced_parents.parent_nodes) > 1:
@@ -651,11 +653,17 @@ class SqlRewritingSubQueryReducerVisitor(SqlQueryPlanNodeVisitor[SqlQueryPlanNod
             distinct=parent_select_node.distinct,
         )
 
-    def visit_table_from_clause_node(self, node: SqlTableFromClauseNode) -> SqlQueryPlanNode:  # noqa: D
+    def visit_table_from_clause_node(self, node: SqlTableFromClauseNode) -> SqlQueryPlanNode:  # noqa: D102
         return node
 
-    def visit_query_from_clause_node(self, node: SqlSelectQueryFromClauseNode) -> SqlQueryPlanNode:  # noqa: D
+    def visit_query_from_clause_node(self, node: SqlSelectQueryFromClauseNode) -> SqlQueryPlanNode:  # noqa: D102
         return node
+
+    def visit_create_table_as_node(self, node: SqlCreateTableAsNode) -> SqlQueryPlanNode:  # noqa: D102
+        return SqlCreateTableAsNode(
+            sql_table=node.sql_table,
+            parent_node=node.parent_node.accept(self),
+        )
 
 
 class SqlGroupByRewritingVisitor(SqlQueryPlanNodeVisitor[SqlQueryPlanNode]):
@@ -671,7 +679,7 @@ class SqlGroupByRewritingVisitor(SqlQueryPlanNodeVisitor[SqlQueryPlanNode]):
                 return select_column
         return None
 
-    def visit_select_statement_node(self, node: SqlSelectStatementNode) -> SqlQueryPlanNode:  # noqa: D
+    def visit_select_statement_node(self, node: SqlSelectStatementNode) -> SqlQueryPlanNode:  # noqa: D102
         new_group_bys = []
         for group_by in node.group_bys:
             matching_select_column = SqlGroupByRewritingVisitor._find_matching_select(
@@ -685,7 +693,7 @@ class SqlGroupByRewritingVisitor(SqlQueryPlanNodeVisitor[SqlQueryPlanNode]):
                     )
                 )
             else:
-                logger.info(f"Did not find matching select for {group_by} in:\n{indent(node.text_structure())}")
+                logger.info(f"Did not find matching select for {group_by} in:\n{indent(node.structure_text())}")
                 new_group_bys.append(group_by)
 
         return SqlSelectStatementNode(
@@ -709,11 +717,17 @@ class SqlGroupByRewritingVisitor(SqlQueryPlanNodeVisitor[SqlQueryPlanNode]):
             distinct=node.distinct,
         )
 
-    def visit_table_from_clause_node(self, node: SqlTableFromClauseNode) -> SqlQueryPlanNode:  # noqa: D
+    def visit_table_from_clause_node(self, node: SqlTableFromClauseNode) -> SqlQueryPlanNode:  # noqa: D102
         return node
 
-    def visit_query_from_clause_node(self, node: SqlSelectQueryFromClauseNode) -> SqlQueryPlanNode:  # noqa: D
+    def visit_query_from_clause_node(self, node: SqlSelectQueryFromClauseNode) -> SqlQueryPlanNode:  # noqa: D102
         return node
+
+    def visit_create_table_as_node(self, node: SqlCreateTableAsNode) -> SqlQueryPlanNode:  # noqa: D102
+        return SqlCreateTableAsNode(
+            sql_table=node.sql_table,
+            parent_node=node.parent_node.accept(self),
+        )
 
 
 class SqlRewritingSubQueryReducer(SqlQueryPlanOptimizer):
@@ -737,10 +751,10 @@ class SqlRewritingSubQueryReducer(SqlQueryPlanOptimizer):
     GROUP BY foo
     """
 
-    def __init__(self, use_column_alias_in_group_bys: bool = False) -> None:  # noqa: D
+    def __init__(self, use_column_alias_in_group_bys: bool = False) -> None:  # noqa: D107
         self._use_column_alias_in_group_bys = use_column_alias_in_group_bys
 
-    def optimize(self, node: SqlQueryPlanNode) -> SqlQueryPlanNode:  # noqa: D
+    def optimize(self, node: SqlQueryPlanNode) -> SqlQueryPlanNode:  # noqa: D102
         result = node.accept(SqlRewritingSubQueryReducerVisitor())
         if self._use_column_alias_in_group_bys:
             return result.accept(SqlGroupByRewritingVisitor())

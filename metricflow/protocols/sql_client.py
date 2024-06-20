@@ -4,10 +4,10 @@ from abc import abstractmethod
 from enum import Enum
 from typing import Protocol
 
-from pandas import DataFrame
+from metricflow_semantics.sql.sql_bind_parameters import SqlBindParameters
 
+from metricflow.data_table.mf_table import MetricFlowDataTable
 from metricflow.sql.render.sql_plan_renderer import SqlQueryPlanRenderer
-from metricflow.sql.sql_bind_parameters import SqlBindParameters
 
 
 class SqlEngine(Enum):
@@ -53,8 +53,8 @@ class SqlClient(Protocol):
         self,
         stmt: str,
         sql_bind_parameters: SqlBindParameters = SqlBindParameters(),
-    ) -> DataFrame:
-        """Base query method, upon execution will run a query that returns a pandas DataFrame."""
+    ) -> MetricFlowDataTable:
+        """Base query method, upon execution will run a query that returns a pandas DataTable."""
         raise NotImplementedError
 
     @abstractmethod
@@ -76,7 +76,7 @@ class SqlClient(Protocol):
         raise NotImplementedError
 
     @abstractmethod
-    def close(self) -> None:  # noqa: D
+    def close(self) -> None:
         """Close the connections / engines used by this client."""
         raise NotImplementedError
 

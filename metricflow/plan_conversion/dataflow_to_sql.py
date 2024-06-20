@@ -11,41 +11,63 @@ from dbt_semantic_interfaces.references import EntityReference, MetricModelRefer
 from dbt_semantic_interfaces.type_enums.aggregation_type import AggregationType
 from dbt_semantic_interfaces.type_enums.conversion_calculation_type import ConversionCalculationType
 from dbt_semantic_interfaces.validations.unique_valid_name import MetricFlowReservedKeywords
-
-from metricflow.aggregation_properties import AggregationState
-from metricflow.dag.id_prefix import StaticIdPrefix
-from metricflow.dag.mf_dag import DagId
-from metricflow.dag.sequential_id import SequentialIdGenerator
-from metricflow.dataflow.dataflow_plan import (
-    AddGeneratedUuidColumnNode,
-    AggregateMeasuresNode,
-    BaseOutput,
-    CombineAggregatedOutputsNode,
-    ComputedMetricsOutput,
-    ComputeMetricsNode,
-    ConstrainTimeRangeNode,
-    DataflowPlanNodeVisitor,
-    FilterElementsNode,
-    JoinConversionEventsNode,
-    JoinOverTimeRangeNode,
-    JoinToBaseOutputNode,
-    JoinToTimeSpineNode,
-    MetricTimeDimensionTransformNode,
-    MinMaxNode,
-    OrderByLimitNode,
-    ReadSqlSourceNode,
-    SemiAdditiveJoinNode,
-    WhereConstraintNode,
-    WriteToResultDataframeNode,
-    WriteToResultTableNode,
+from metricflow_semantics.aggregation_properties import AggregationState
+from metricflow_semantics.dag.id_prefix import StaticIdPrefix
+from metricflow_semantics.dag.mf_dag import DagId
+from metricflow_semantics.dag.sequential_id import SequentialIdGenerator
+from metricflow_semantics.filters.time_constraint import TimeRangeConstraint
+from metricflow_semantics.instances import (
+    GroupByMetricInstance,
+    InstanceSet,
+    MetadataInstance,
+    MetricInstance,
+    TimeDimensionInstance,
 )
-from metricflow.dataset.dataset import DataSet
+from metricflow_semantics.mf_logging.formatting import indent
+from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
+from metricflow_semantics.specs.column_assoc import (
+    ColumnAssociation,
+    ColumnAssociationResolver,
+    SingleColumnCorrelationKey,
+)
+from metricflow_semantics.specs.spec_classes import (
+    GroupByMetricSpec,
+    MeasureSpec,
+    MetadataSpec,
+    MetricSpec,
+    TimeDimensionSpec,
+)
+from metricflow_semantics.specs.spec_set import InstanceSpecSet
+from metricflow_semantics.sql.sql_join_type import SqlJoinType
+from metricflow_semantics.time.time_constants import ISO8601_PYTHON_FORMAT
+
+from metricflow.dataflow.dataflow_plan import (
+    DataflowPlanNode,
+    DataflowPlanNodeVisitor,
+)
+from metricflow.dataflow.nodes.add_generated_uuid import AddGeneratedUuidColumnNode
+from metricflow.dataflow.nodes.aggregate_measures import AggregateMeasuresNode
+from metricflow.dataflow.nodes.combine_aggregated_outputs import CombineAggregatedOutputsNode
+from metricflow.dataflow.nodes.compute_metrics import ComputeMetricsNode
+from metricflow.dataflow.nodes.constrain_time import ConstrainTimeRangeNode
+from metricflow.dataflow.nodes.filter_elements import FilterElementsNode
+from metricflow.dataflow.nodes.join_conversion_events import JoinConversionEventsNode
+from metricflow.dataflow.nodes.join_over_time import JoinOverTimeRangeNode
+from metricflow.dataflow.nodes.join_to_base import JoinOnEntitiesNode
+from metricflow.dataflow.nodes.join_to_time_spine import JoinToTimeSpineNode
+from metricflow.dataflow.nodes.metric_time_transform import MetricTimeDimensionTransformNode
+from metricflow.dataflow.nodes.min_max import MinMaxNode
+from metricflow.dataflow.nodes.order_by_limit import OrderByLimitNode
+from metricflow.dataflow.nodes.read_sql_source import ReadSqlSourceNode
+from metricflow.dataflow.nodes.semi_additive_join import SemiAdditiveJoinNode
+from metricflow.dataflow.nodes.where_filter import WhereConstraintNode
+from metricflow.dataflow.nodes.write_to_data_table import WriteToResultDataTableNode
+from metricflow.dataflow.nodes.write_to_table import WriteToResultTableNode
+from metricflow.dataset.dataset_classes import DataSet
 from metricflow.dataset.sql_dataset import SqlDataSet
-from metricflow.filters.time_constraint import TimeRangeConstraint
-from metricflow.instances import InstanceSet, MetadataInstance, MetricInstance, TimeDimensionInstance
-from metricflow.mf_logging.formatting import indent
-from metricflow.model.semantic_manifest_lookup import SemanticManifestLookup
+from metricflow.plan_conversion.convert_to_sql_plan import ConvertToSqlPlanResult
 from metricflow.plan_conversion.instance_converters import (
+    AddGroupByMetric,
     AddLinkToLinkableElements,
     AddMetadata,
     AddMetrics,
@@ -59,6 +81,7 @@ from metricflow.plan_conversion.instance_converters import (
     CreateSqlColumnReferencesForInstances,
     FilterElements,
     FilterLinkableInstancesWithLeadingLink,
+    InstanceSetTransform,
     RemoveMeasures,
     RemoveMetrics,
     UpdateMeasureFillNullsWith,
@@ -79,14 +102,6 @@ from metricflow.plan_conversion.sql_join_builder import (
 )
 from metricflow.plan_conversion.time_spine import TIME_SPINE_DATA_SET_DESCRIPTION, TimeSpineSource
 from metricflow.protocols.sql_client import SqlEngine
-from metricflow.specs.column_assoc import ColumnAssociation, ColumnAssociationResolver, SingleColumnCorrelationKey
-from metricflow.specs.specs import (
-    InstanceSpecSet,
-    MeasureSpec,
-    MetadataSpec,
-    MetricSpec,
-    TimeDimensionSpec,
-)
 from metricflow.sql.optimizer.optimization_levels import (
     SqlQueryOptimizationLevel,
     SqlQueryOptimizerConfiguration,
@@ -114,8 +129,8 @@ from metricflow.sql.sql_exprs import (
     SqlWindowOrderByArgument,
 )
 from metricflow.sql.sql_plan import (
+    SqlCreateTableAsNode,
     SqlJoinDescription,
-    SqlJoinType,
     SqlOrderByDescription,
     SqlQueryPlan,
     SqlQueryPlanNode,
@@ -123,7 +138,6 @@ from metricflow.sql.sql_plan import (
     SqlSelectStatementNode,
     SqlTableFromClauseNode,
 )
-from metricflow.time.time_constants import ISO8601_PYTHON_FORMAT
 
 logger = logging.getLogger(__name__)
 
@@ -168,22 +182,22 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
         self._semantic_manifest_lookup = semantic_manifest_lookup
         self._metric_lookup = semantic_manifest_lookup.metric_lookup
         self._semantic_model_lookup = semantic_manifest_lookup.semantic_model_lookup
-        self._time_spine_source = semantic_manifest_lookup.time_spine_source
+        self._time_spine_source = TimeSpineSource.create_from_manifest(semantic_manifest_lookup.semantic_manifest)
 
     @property
-    def column_association_resolver(self) -> ColumnAssociationResolver:  # noqa: D
+    def column_association_resolver(self) -> ColumnAssociationResolver:  # noqa: D102
         return self._column_association_resolver
 
     def convert_to_sql_query_plan(
         self,
         sql_engine_type: SqlEngine,
-        dataflow_plan_node: Union[BaseOutput, ComputedMetricsOutput],
+        dataflow_plan_node: DataflowPlanNode,
         optimization_level: SqlQueryOptimizationLevel = SqlQueryOptimizationLevel.O4,
         sql_query_plan_id: Optional[DagId] = None,
-    ) -> SqlQueryPlan:
+    ) -> ConvertToSqlPlanResult:
         """Create an SQL query plan that represents the computation up to the given dataflow plan node."""
-        sql_select_node: SqlQueryPlanNode = dataflow_plan_node.accept(self).sql_select_node
-
+        data_set = dataflow_plan_node.accept(self)
+        sql_node: SqlQueryPlanNode = data_set.sql_node
         # TODO: Make this a more generally accessible attribute instead of checking against the
         # BigQuery-ness of the engine
         use_column_alias_in_group_by = sql_engine_type is SqlEngine.BIGQUERY
@@ -192,13 +206,16 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
             optimization_level, use_column_alias_in_group_by=use_column_alias_in_group_by
         ):
             logger.info(f"Applying optimizer: {optimizer.__class__.__name__}")
-            sql_select_node = optimizer.optimize(sql_select_node)
+            sql_node = optimizer.optimize(sql_node)
             logger.info(
                 f"After applying {optimizer.__class__.__name__}, the SQL query plan is:\n"
-                f"{indent(sql_select_node.text_structure())}"
+                f"{indent(sql_node.structure_text())}"
             )
 
-        return SqlQueryPlan(render_node=sql_select_node, plan_id=sql_query_plan_id)
+        return ConvertToSqlPlanResult(
+            instance_set=data_set.instance_set,
+            sql_plan=SqlQueryPlan(render_node=sql_node, plan_id=sql_query_plan_id),
+        )
 
     def _next_unique_table_alias(self) -> str:
         """Return the next unique table alias to use in generating queries."""
@@ -304,7 +321,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
     def visit_source_node(self, node: ReadSqlSourceNode) -> SqlDataSet:
         """Generate the SQL to read from the source."""
         return SqlDataSet(
-            sql_select_node=node.data_set.sql_select_node,
+            sql_select_node=node.data_set.checked_sql_select_node,
             instance_set=node.data_set.instance_set,
         )
 
@@ -393,7 +410,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
                 select_columns=create_select_columns_for_instance_sets(
                     self._column_association_resolver, table_alias_to_instance_set
                 ),
-                from_source=time_spine_data_set.sql_select_node,
+                from_source=time_spine_data_set.checked_sql_select_node,
                 from_source_alias=time_spine_data_set_alias,
                 joins_descs=(join_desc,),
                 group_bys=(),
@@ -402,7 +419,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
             ),
         )
 
-    def visit_join_to_base_output_node(self, node: JoinToBaseOutputNode) -> SqlDataSet:
+    def visit_join_on_entities_node(self, node: JoinOnEntitiesNode) -> SqlDataSet:
         """Generates the query that realizes the behavior of the JoinToStandardOutputNode."""
         # Keep a mapping between the table aliases that would be used in the query and the MDO instances in that source.
         # e.g. when building "FROM from_table a JOIN right_table b", the value for key "a" would be the instances in
@@ -424,7 +441,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
         for join_description in node.join_targets:
             join_on_entity = join_description.join_on_entity
 
-            right_node_to_join: BaseOutput = join_description.join_node
+            right_node_to_join: DataflowPlanNode = join_description.join_node
             right_data_set: SqlDataSet = right_node_to_join.accept(self)
             right_data_set_alias = self._next_unique_table_alias()
 
@@ -486,7 +503,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
                 select_columns=create_select_columns_for_instance_sets(
                     self._column_association_resolver, table_alias_to_instance_set
                 ),
-                from_source=from_data_set.sql_select_node,
+                from_source=from_data_set.checked_sql_select_node,
                 from_source_alias=from_data_set_alias,
                 joins_descs=tuple(sql_join_descs),
                 group_bys=(),
@@ -563,7 +580,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
                 description=node.description,
                 # This will generate expressions with the appropriate aggregation functions e.g. SUM()
                 select_columns=select_column_set.as_tuple(),
-                from_source=from_data_set.sql_select_node,
+                from_source=from_data_set.checked_sql_select_node,
                 from_source_alias=from_data_set_alias,
                 joins_descs=(),
                 # This will generate expressions to group by the columns that don't correspond to a measure instance.
@@ -586,6 +603,11 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
         output_instance_set = output_instance_set.transform(ChangeAssociatedColumns(self._column_association_resolver))
         output_instance_set = output_instance_set.transform(RemoveMetrics())
 
+        if node.for_group_by_source_node:
+            assert (
+                len(node.metric_specs) == 1 and len(output_instance_set.entity_instances) == 1
+            ), "Group by metrics currently only support exactly one metric grouped by exactly one entity."
+
         non_metric_select_column_set: SelectColumnSet = output_instance_set.transform(
             CreateSelectColumnsForInstances(
                 table_alias=from_data_set_alias,
@@ -596,6 +618,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
         # Add select columns that would compute the metrics to the select columns.
         metric_select_columns = []
         metric_instances = []
+        group_by_metric_instance: Optional[GroupByMetricInstance] = None
         for metric_spec in node.metric_specs:
             metric = self._metric_lookup.get_metric(metric_spec.reference)
 
@@ -654,7 +677,9 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
                     column_name=expr, input_measure=input_measure, from_data_set_alias=from_data_set_alias
                 )
             elif metric.type is MetricType.DERIVED:
-                assert metric.type_params.expr
+                assert (
+                    metric.type_params.expr
+                ), "Derived metrics are required to have an `expr` in their YAML definition."
                 metric_expr = SqlStringExpression(sql_expr=metric.type_params.expr)
             elif metric.type == MetricType.CONVERSION:
                 conversion_type_params = metric.type_params.conversion_type_params
@@ -695,21 +720,39 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
 
             assert metric_expr
 
-            output_column_association = self._column_association_resolver.resolve_spec(metric_spec)
-            metric_select_columns.append(
-                SqlSelectColumn(
-                    expr=metric_expr,
-                    column_alias=output_column_association.column_name,
+            defined_from = MetricModelReference(metric_name=metric_spec.element_name)
+
+            if node.for_group_by_source_node:
+                entity_spec = output_instance_set.entity_instances[0].spec
+                group_by_metric_spec = GroupByMetricSpec(
+                    element_name=metric_spec.element_name,
+                    entity_links=(),
+                    metric_subquery_entity_links=entity_spec.entity_links + (entity_spec.reference,),
                 )
-            )
-            metric_instances.append(
-                MetricInstance(
+                output_column_association = self._column_association_resolver.resolve_spec(group_by_metric_spec)
+                group_by_metric_instance = GroupByMetricInstance(
                     associated_columns=(output_column_association,),
-                    defined_from=MetricModelReference(metric_name=metric_spec.element_name),
-                    spec=metric_spec,
+                    defined_from=defined_from,
+                    spec=group_by_metric_spec,
                 )
+            else:
+                output_column_association = self._column_association_resolver.resolve_spec(metric_spec)
+                metric_instances.append(
+                    MetricInstance(
+                        associated_columns=(output_column_association,),
+                        defined_from=defined_from,
+                        spec=metric_spec,
+                    )
+                )
+            metric_select_columns.append(
+                SqlSelectColumn(expr=metric_expr, column_alias=output_column_association.column_name)
             )
-        output_instance_set = output_instance_set.transform(AddMetrics(metric_instances))
+
+        transform_func: InstanceSetTransform = AddMetrics(metric_instances)
+        if group_by_metric_instance:
+            transform_func = AddGroupByMetric(group_by_metric_instance)
+
+        output_instance_set = output_instance_set.transform(transform_func)
 
         combined_select_column_set = non_metric_select_column_set.merge(
             SelectColumnSet(metric_columns=metric_select_columns)
@@ -720,7 +763,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
             sql_select_node=SqlSelectStatementNode(
                 description=node.description,
                 select_columns=combined_select_column_set.as_tuple(),
-                from_source=from_data_set.sql_select_node,
+                from_source=from_data_set.checked_sql_select_node,
                 from_source_alias=from_data_set_alias,
                 joins_descs=(),
                 group_bys=(),
@@ -744,7 +787,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
             )
         return metric_expr
 
-    def visit_order_by_limit_node(self, node: OrderByLimitNode) -> SqlDataSet:  # noqa: D
+    def visit_order_by_limit_node(self, node: OrderByLimitNode) -> SqlDataSet:  # noqa: D102
         from_data_set: SqlDataSet = node.parent_node.accept(self)
         output_instance_set = from_data_set.instance_set
         from_data_set_alias = self._next_unique_table_alias()
@@ -776,7 +819,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
                 select_columns=output_instance_set.transform(
                     CreateSelectColumnsForInstances(from_data_set_alias, self._column_association_resolver)
                 ).as_tuple(),
-                from_source=from_data_set.sql_select_node,
+                from_source=from_data_set.checked_sql_select_node,
                 from_source_alias=from_data_set_alias,
                 joins_descs=(),
                 group_bys=(),
@@ -786,19 +829,22 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
             ),
         )
 
-    def visit_write_to_result_dataframe_node(self, node: WriteToResultDataframeNode) -> SqlDataSet:
-        """This is an operation that can't be represented as an SQL query.
+    def visit_write_to_result_data_table_node(self, node: WriteToResultDataTableNode) -> SqlDataSet:  # noqa: D102
+        # Returning the parent-node SQL as an approximation since you can't write to a data_table via SQL.
+        return node.parent_node.accept(self)
 
-        Instead, it should be handled in the execution plan as an operation that runs an SQL query and saves it to
-        a dataframe.
-        """
-        raise RuntimeError("This node type is not supported.")
+    def visit_write_to_result_table_node(self, node: WriteToResultTableNode) -> SqlDataSet:  # noqa: D102
+        input_data_set: SqlDataSet = node.parent_node.accept(self)
+        input_instance_set: InstanceSet = input_data_set.instance_set
+        return SqlDataSet(
+            instance_set=input_instance_set,
+            sql_node=SqlCreateTableAsNode(
+                sql_table=node.output_sql_table,
+                parent_node=input_data_set.checked_sql_select_node,
+            ),
+        )
 
-    def visit_write_to_result_table_node(self, node: WriteToResultTableNode) -> SqlDataSet:
-        """Similar to visit_write_to_result_dataframe_node()."""
-        raise RuntimeError("This node type is not supported.")
-
-    def visit_pass_elements_filter_node(self, node: FilterElementsNode) -> SqlDataSet:
+    def visit_filter_elements_node(self, node: FilterElementsNode) -> SqlDataSet:
         """Generates the query that realizes the behavior of FilterElementsNode."""
         from_data_set: SqlDataSet = node.parent_node.accept(self)
         output_instance_set = from_data_set.instance_set.transform(FilterElements(node.include_specs))
@@ -819,7 +865,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
             sql_select_node=SqlSelectStatementNode(
                 description=node.description,
                 select_columns=select_columns,
-                from_source=from_data_set.sql_select_node,
+                from_source=from_data_set.checked_sql_select_node,
                 from_source_alias=from_data_set_alias,
                 joins_descs=(),
                 group_bys=group_bys,
@@ -840,7 +886,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
 
         column_associations_in_where_sql: Sequence[ColumnAssociation] = CreateColumnAssociations(
             column_association_resolver=self._column_association_resolver
-        ).transform(spec_set=node.where.linkable_spec_set.as_spec_set)
+        ).transform(spec_set=InstanceSpecSet.create_from_specs(node.where.linkable_specs))
 
         return SqlDataSet(
             instance_set=output_instance_set,
@@ -850,7 +896,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
                 select_columns=output_instance_set.transform(
                     CreateSelectColumnsForInstances(from_data_set_alias, self._column_association_resolver)
                 ).as_tuple(),
-                from_source=parent_data_set.sql_select_node,
+                from_source=parent_data_set.checked_sql_select_node,
                 from_source_alias=from_data_set_alias,
                 joins_descs=(),
                 group_bys=(),
@@ -971,7 +1017,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
             sql_select_node=SqlSelectStatementNode(
                 description=node.description,
                 select_columns=combined_select_column_set.as_tuple(),
-                from_source=from_data_set.data_set.sql_select_node,
+                from_source=from_data_set.data_set.checked_sql_select_node,
                 from_source_alias=from_data_set.alias,
                 joins_descs=tuple(joins_descriptions),
                 group_bys=linkable_select_column_set.as_tuple(),
@@ -1023,7 +1069,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
                 select_columns=output_instance_set.transform(
                     CreateSelectColumnsForInstances(from_data_set_alias, self._column_association_resolver)
                 ).as_tuple(),
-                from_source=from_data_set.sql_select_node,
+                from_source=from_data_set.checked_sql_select_node,
                 from_source_alias=from_data_set_alias,
                 joins_descs=(),
                 group_bys=(),
@@ -1116,7 +1162,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
                 )
                 .transform(output_instance_set)
                 .as_tuple(),
-                from_source=input_data_set.sql_select_node,
+                from_source=input_data_set.checked_sql_select_node,
                 from_source_alias=from_data_set_alias,
                 joins_descs=(),
                 group_bys=(),
@@ -1214,7 +1260,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
         row_filter_sql_select_node = SqlSelectStatementNode(
             description=f"Filter row on {node.agg_by_function.name}({time_dimension_column_name})",
             select_columns=row_filter_group_bys + (time_dimension_select_column,),
-            from_source=from_data_set.sql_select_node,
+            from_source=from_data_set.checked_sql_select_node,
             from_source_alias=inner_join_data_set_alias,
             joins_descs=(),
             group_bys=row_filter_group_bys,
@@ -1237,7 +1283,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
                 select_columns=output_instance_set.transform(
                     CreateSelectColumnsForInstances(from_data_set_alias, self._column_association_resolver)
                 ).as_tuple(),
-                from_source=from_data_set.sql_select_node,
+                from_source=from_data_set.checked_sql_select_node,
                 from_source_alias=from_data_set_alias,
                 joins_descs=(sql_join_desc,),
                 group_bys=(),
@@ -1246,7 +1292,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
             ),
         )
 
-    def visit_join_to_time_spine_node(self, node: JoinToTimeSpineNode) -> SqlDataSet:  # noqa: D
+    def visit_join_to_time_spine_node(self, node: JoinToTimeSpineNode) -> SqlDataSet:  # noqa: D102
         parent_data_set = node.parent_node.accept(self)
         parent_alias = self._next_unique_table_alias()
 
@@ -1293,7 +1339,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
             node=node,
             time_spine_alias=time_spine_alias,
             agg_time_dimension_column_name=agg_time_dimension_column_name,
-            parent_sql_select_node=parent_data_set.sql_select_node,
+            parent_sql_select_node=parent_data_set.checked_sql_select_node,
             parent_alias=parent_alias,
         )
 
@@ -1331,7 +1377,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
         # Select agg_time_dimension instance from time spine data set.
         assert (
             len(time_spine_dataset.instance_set.time_dimension_instances) == 1
-            and len(time_spine_dataset.sql_select_node.select_columns) == 1
+            and len(time_spine_dataset.checked_sql_select_node.select_columns) == 1
         ), "Time spine dataset not configured properly. Expected exactly one column."
         original_time_spine_dim_instance = time_spine_dataset.instance_set.time_dimension_instances[0]
         time_spine_column_select_expr: Union[
@@ -1415,7 +1461,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
             sql_select_node=SqlSelectStatementNode(
                 description=node.description,
                 select_columns=tuple(time_spine_select_columns) + parent_select_columns,
-                from_source=time_spine_dataset.sql_select_node,
+                from_source=time_spine_dataset.checked_sql_select_node,
                 from_source_alias=time_spine_alias,
                 joins_descs=(join_description,),
                 group_bys=(),
@@ -1424,13 +1470,13 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
             ),
         )
 
-    def visit_min_max_node(self, node: MinMaxNode) -> SqlDataSet:  # noqa: D
+    def visit_min_max_node(self, node: MinMaxNode) -> SqlDataSet:  # noqa: D102
         parent_data_set = node.parent_node.accept(self)
         parent_table_alias = self._next_unique_table_alias()
         assert (
-            len(parent_data_set.sql_select_node.select_columns) == 1
+            len(parent_data_set.checked_sql_select_node.select_columns) == 1
         ), "MinMaxNode supports exactly one parent select column."
-        parent_column_alias = parent_data_set.sql_select_node.select_columns[0].column_alias
+        parent_column_alias = parent_data_set.checked_sql_select_node.select_columns[0].column_alias
 
         select_columns: List[SqlSelectColumn] = []
         metadata_instances: List[MetadataInstance] = []
@@ -1457,7 +1503,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
             sql_select_node=SqlSelectStatementNode(
                 description=node.description,
                 select_columns=tuple(select_columns),
-                from_source=parent_data_set.sql_select_node,
+                from_source=parent_data_set.checked_sql_select_node,
                 from_source_alias=parent_table_alias,
                 joins_descs=(),
                 group_bys=(),
@@ -1498,7 +1544,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
                     CreateSelectColumnsForInstances(input_data_set_alias, self._column_association_resolver)
                 ).as_tuple()
                 + (gen_uuid_sql_select_column,),
-                from_source=input_data_set.sql_select_node,
+                from_source=input_data_set.checked_sql_select_node,
                 from_source_alias=input_data_set_alias,
                 joins_descs=(),
                 group_bys=(),
@@ -1645,7 +1691,7 @@ class DataflowToSqlQueryPlanConverter(DataflowPlanNodeVisitor[SqlDataSet]):
             select_columns=base_sql_select_columns
             + conversion_unique_key_select_columns
             + additional_conversion_select_columns,
-            from_source=base_data_set.sql_select_node,
+            from_source=base_data_set.checked_sql_select_node,
             from_source_alias=base_data_set_alias,
             joins_descs=(sql_join_description,),
             group_bys=(),

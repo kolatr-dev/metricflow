@@ -15,31 +15,30 @@ from dbt_semantic_interfaces.references import (
 )
 from dbt_semantic_interfaces.type_enums.date_part import DatePart
 from dbt_semantic_interfaces.type_enums.time_granularity import TimeGranularity
-
-from metricflow.aggregation_properties import AggregationState
-from metricflow.dag.id_prefix import DynamicIdPrefix, StaticIdPrefix
-from metricflow.dag.sequential_id import SequentialIdGenerator
-from metricflow.dataflow.sql_table import SqlTable
-from metricflow.dataset.semantic_model_adapter import SemanticModelDataSet
-from metricflow.dataset.sql_dataset import SqlDataSet
-from metricflow.instances import (
+from metricflow_semantics.aggregation_properties import AggregationState
+from metricflow_semantics.dag.id_prefix import DynamicIdPrefix, StaticIdPrefix
+from metricflow_semantics.dag.sequential_id import SequentialIdGenerator
+from metricflow_semantics.instances import (
     DimensionInstance,
     EntityInstance,
     InstanceSet,
     MeasureInstance,
     TimeDimensionInstance,
 )
-from metricflow.model.semantics.semantic_model_lookup import SemanticModelLookup
-from metricflow.model.spec_converters import MeasureConverter
-from metricflow.plan_conversion.time_spine import TIME_SPINE_DATA_SET_DESCRIPTION, TimeSpineSource
-from metricflow.specs.column_assoc import ColumnAssociationResolver
-from metricflow.specs.specs import (
+from metricflow_semantics.model.semantics.semantic_model_lookup import SemanticModelLookup
+from metricflow_semantics.model.spec_converters import MeasureConverter
+from metricflow_semantics.specs.column_assoc import ColumnAssociationResolver
+from metricflow_semantics.specs.spec_classes import (
     DEFAULT_TIME_GRANULARITY,
     DimensionSpec,
     EntityReference,
     EntitySpec,
     TimeDimensionSpec,
 )
+
+from metricflow.dataset.semantic_model_adapter import SemanticModelDataSet
+from metricflow.dataset.sql_dataset import SqlDataSet
+from metricflow.plan_conversion.time_spine import TIME_SPINE_DATA_SET_DESCRIPTION, TimeSpineSource
 from metricflow.sql.sql_exprs import (
     SqlColumnReference,
     SqlColumnReferenceExpression,
@@ -49,11 +48,11 @@ from metricflow.sql.sql_exprs import (
     SqlStringExpression,
 )
 from metricflow.sql.sql_plan import (
-    SqlQueryPlanNode,
     SqlSelectColumn,
     SqlSelectStatementNode,
     SqlTableFromClauseNode,
 )
+from metricflow.sql.sql_table import SqlTable
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +78,7 @@ class SemanticModelToDataSetConverter:
     # Regex for inferring whether an expression for an element is a column reference.
     _SQL_IDENTIFIER_REGEX = re.compile("^[a-zA-Z_][a-zA-Z_0-9]*$")
 
-    def __init__(self, column_association_resolver: ColumnAssociationResolver) -> None:  # noqa: D
+    def __init__(self, column_association_resolver: ColumnAssociationResolver) -> None:  # noqa: D107
         self._column_association_resolver = column_association_resolver
 
     def _create_dimension_instance(
@@ -124,13 +123,15 @@ class SemanticModelToDataSetConverter:
             associated_columns=(self._column_association_resolver.resolve_spec(time_dimension_spec),),
             spec=time_dimension_spec,
             defined_from=(
-                SemanticModelElementReference(
-                    semantic_model_name=semantic_model_name,
-                    element_name=element_name,
-                ),
-            )
-            if semantic_model_name
-            else (),
+                (
+                    SemanticModelElementReference(
+                        semantic_model_name=semantic_model_name,
+                        element_name=element_name,
+                    ),
+                )
+                if semantic_model_name
+                else ()
+            ),
         )
 
     def _create_entity_instance(
@@ -492,7 +493,6 @@ class SemanticModelToDataSetConverter:
             all_select_columns.extend(select_columns)
 
         # Generate the "from" clause depending on whether it's an SQL query or an SQL table.
-        from_source: Optional[SqlQueryPlanNode] = None
         from_source = SqlTableFromClauseNode(sql_table=SqlTable.from_string(semantic_model.node_relation.relation_name))
 
         select_statement_node = SqlSelectStatementNode(

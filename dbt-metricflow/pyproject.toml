@@ -1,13 +1,13 @@
 [build-system]
-requires = ["hatchling~=1.14.0"]
+requires = ["hatchling~=1.14.0", "hatch-requirements-txt >= 0.4.1, <0.5.0"]
 build-backend = "hatchling.build"
 
 [project]
 name = "dbt-metricflow"
-version = "0.5.0"
+version = "0.6.0"
 description = "Execute commands against the MetricFlow semantic layer with dbt."
 readme = "README.md"
-requires-python = ">=3.8,<3.12"
+requires-python = ">=3.8,<3.13"
 license = "BUSL-1.1"
 authors = [
   { name = "dbt Labs", email = "info@dbtlabs.com" },
@@ -20,41 +20,50 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [
-  "dbt-core~=1.7.4",
-  "metricflow~=0.204.0"
+
+# Dependencies are specified through the `hatch-requirements-txt` plug-in.
+dynamic = ["dependencies", "optional-dependencies"]
+
+[tool.hatch.metadata.hooks.requirements_txt]
+files = [
+  "extra-hatch-configuration/requirements-cli.txt",
+  "extra-hatch-configuration/requirements-metricflow.txt",
 ]
 
 [project.urls]
 "Source Code" = "https://github.com/dbt-labs/metricflow/tree/main/dbt-metricflow"
 
-[project.optional-dependencies]
-clickhouse = [
-  "dbt-clickhouse~=1.7.6"
+[project.scripts]
+mf = 'dbt_metricflow.cli.main:cli'
+
+[tool.hatch.metadata.hooks.requirements_txt.optional-dependencies]
+dbt-bigquery = [
+  "extra-hatch-configuration/requirements-dbt-bigquery.txt"
 ]
-bigquery = [
-  "dbt-bigquery~=1.7.0"
+dbt-databricks = [
+  "extra-hatch-configuration/requirements-dbt-databricks.txt"
 ]
-databricks = [
-  "dbt-databricks~=1.7.0"
+dbt-duckdb = [
+  "extra-hatch-configuration/requirements-dbt-duckdb.txt"
 ]
-duckdb = [
-  "dbt-duckdb~=1.7.0"
+dbt-postgres = [
+  "extra-hatch-configuration/requirements-dbt-postgres.txt"
 ]
-postgres = [
-  "dbt-postgres~=1.7.0"
+dbt-redshift = [
+  "extra-hatch-configuration/requirements-dbt-redshift.txt"
 ]
-redshift = [
-  "dbt-redshift~=1.7.0"
+dbt-snowflake = [
+  "extra-hatch-configuration/requirements-dbt-snowflake.txt"
 ]
-snowflake = [
-  "dbt-snowflake~=1.7.0"
+dbt-trino = [
+  "extra-hatch-configuration/requirements-dbt-trino.txt"
 ]
-trino = [
-  "dbt-trino~=1.7.0"
+dbt-clickhouse = [
+  "extra-hatch-configuration/requirements-dbt-clickhouse.txt"
 ]
 
 [tool.hatch.build.targets.sdist]

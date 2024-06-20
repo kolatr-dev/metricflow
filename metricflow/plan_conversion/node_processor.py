@@ -1,33 +1,36 @@
 from __future__ import annotations
 
+import dataclasses
 import logging
-from dataclasses import dataclass
-from typing import List, Optional, Sequence, Set
+from enum import Enum
+from typing import FrozenSet, List, Optional, Sequence, Set
 
+from dbt_semantic_interfaces.enum_extension import assert_values_exhausted
 from dbt_semantic_interfaces.references import EntityReference, TimeDimensionReference
+from metricflow_semantics.filters.time_constraint import TimeRangeConstraint
+from metricflow_semantics.mf_logging.pretty_print import mf_pformat
+from metricflow_semantics.model.semantics.semantic_model_join_evaluator import MAX_JOIN_HOPS
+from metricflow_semantics.model.semantics.semantic_model_lookup import SemanticModelLookup
+from metricflow_semantics.specs.spec_classes import LinkableInstanceSpec, LinklessEntitySpec
+from metricflow_semantics.specs.spec_set import group_specs_by_type
+from metricflow_semantics.specs.spec_set_transforms import ToElementNameSet
+from metricflow_semantics.sql.sql_join_type import SqlJoinType
 
 from metricflow.dataflow.builder.node_data_set import DataflowPlanNodeOutputDataSetResolver
 from metricflow.dataflow.builder.partitions import PartitionJoinResolver
 from metricflow.dataflow.dataflow_plan import (
-    BaseOutput,
-    ConstrainTimeRangeNode,
-    FilterElementsNode,
-    JoinDescription,
-    JoinToBaseOutputNode,
-    MetricTimeDimensionTransformNode,
+    DataflowPlanNode,
 )
-from metricflow.filters.time_constraint import TimeRangeConstraint
-from metricflow.mf_logging.pretty_print import mf_pformat
-from metricflow.model.semantics.semantic_model_join_evaluator import MAX_JOIN_HOPS, SemanticModelJoinEvaluator
-from metricflow.protocols.semantics import SemanticModelAccessor
-from metricflow.specs.spec_set_transforms import ToElementNameSet
-from metricflow.specs.specs import InstanceSpecSet, LinkableInstanceSpec, LinklessEntitySpec
-from metricflow.sql.sql_plan import SqlJoinType
+from metricflow.dataflow.nodes.constrain_time import ConstrainTimeRangeNode
+from metricflow.dataflow.nodes.filter_elements import FilterElementsNode
+from metricflow.dataflow.nodes.join_to_base import JoinDescription, JoinOnEntitiesNode
+from metricflow.dataflow.nodes.metric_time_transform import MetricTimeDimensionTransformNode
+from metricflow.validation.dataflow_join_validator import JoinDataflowOutputValidator
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class MultiHopJoinCandidateLineage:
     """Describes how the multi-hop join candidate was formed.
 
@@ -42,20 +45,156 @@ class MultiHopJoinCandidateLineage:
     to get the country dimension.
     """
 
-    first_node_to_join: BaseOutput
-    second_node_to_join: BaseOutput
+    first_node_to_join: DataflowPlanNode
+    second_node_to_join: DataflowPlanNode
     join_second_node_by_entity: LinklessEntitySpec
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class MultiHopJoinCandidate:
     """A candidate node containing linkable specs that is join of other nodes. It's used to resolve multi-hop queries.
 
     Also see MultiHopJoinCandidateLineage.
     """
 
-    node_with_multi_hop_elements: BaseOutput
+    node_with_multi_hop_elements: DataflowPlanNode
     lineage: MultiHopJoinCandidateLineage
+
+
+class PredicateInputType(Enum):
+    """Enumeration of predicate input types we may encounter in where filters.
+
+    This is primarily used for describing when predicate pushdown may operate in a dataflow plan, and is necessary
+    for holistic checks against the set of potentially enabled pushdown operations. For example, in the scenario
+    scenario where we only allow time range updates, we must do careful overriding of other pushdown properties.
+
+    This also allows us to disable pushdown for things like time dimension filters in cases where we might
+    accidentally censor input data.
+    """
+
+    CATEGORICAL_DIMENSION = "categorical_dimension"
+    ENTITY = "entity"
+    TIME_DIMENSION = "time_dimension"
+    TIME_RANGE_CONSTRAINT = "time_range_constraint"
+
+
+@dataclasses.dataclass(frozen=True)
+class PredicatePushdownState:
+    """Container class for maintaining state information relevant for predicate pushdown.
+
+    This broadly tracks two related items:
+    1. Filter predicates collected during the process of constructing a dataflow plan
+    2. Predicate types eligible for pushdown
+
+    The former may be updated as things like time constraints get altered or metric and measure filters are
+    added to the query filters.
+    The latter may be updated based on query configuration, like if a cumulative metric is added to the plan
+    there may be changes to what sort of predicate pushdown operations are supported.
+
+    The time_range_constraint property holds the time window for setting up a time range filter expression.
+    """
+
+    time_range_constraint: Optional[TimeRangeConstraint]
+    pushdown_enabled_types: FrozenSet[PredicateInputType] = frozenset([PredicateInputType.TIME_RANGE_CONSTRAINT])
+
+    def __post_init__(self) -> None:
+        """Validation to ensure pushdown states are configured correctly.
+
+        In particular, this asserts that cases where pushdown is disabled cannot leak pushdown operations via
+        outside property access - if pushdown is disabled, no further pushdown operations of any kind are allowed
+        on that particular code branch. It also asserts that unsupported pushdown scenarios are not configured.
+        """
+        invalid_types: Set[PredicateInputType] = set()
+
+        for input_type in self.pushdown_enabled_types:
+            if (
+                input_type is PredicateInputType.CATEGORICAL_DIMENSION
+                or input_type is PredicateInputType.ENTITY
+                or input_type is PredicateInputType.TIME_DIMENSION
+            ):
+                invalid_types.add(input_type)
+            elif input_type is PredicateInputType.TIME_RANGE_CONSTRAINT:
+                continue
+            else:
+                assert_values_exhausted(input_type)
+
+        assert len(invalid_types) == 0, (
+            "Unsupported predicate input type found in pushdown state configuration! We currently only support "
+            "predicate pushdown for a subset of possible predicate input types (i.e., types of semantic manifest "
+            "elements, such as entities and time dimensions, referenced in filter predicates), but this was enabled "
+            f"for {self.pushdown_enabled_types}, which includes the following invalid types: {invalid_types}."
+        )
+
+        # TODO: Include where filter specs when they are added to this class
+        time_range_constraint_is_valid = (
+            self.time_range_constraint is None
+            or PredicateInputType.TIME_RANGE_CONSTRAINT in self.pushdown_enabled_types
+        )
+        assert time_range_constraint_is_valid, (
+            "Invalid pushdown state configuration! Disabled pushdown state objects cannot have properties "
+            "set that may lead to improper access and use in other contexts, as that can lead to unintended "
+            "filtering operations in cases where these properties are accessed without appropriate checks against "
+            "pushdown configuration. The following properties should all have None values:\n"
+            f"time_range_constraint: {self.time_range_constraint}"
+        )
+
+    @property
+    def has_pushdown_potential(self) -> bool:
+        """Returns whether or not pushdown is enabled for a type with predicate candidates in place."""
+        return self.has_time_range_constraint_to_push_down
+
+    @property
+    def has_time_range_constraint_to_push_down(self) -> bool:
+        """Convenience accessor for checking if there is a time range constraint that can be pushed down.
+
+        Note: this time range enabled state is a backwards compatibility shim for use with conversion metrics while
+        we determine how best to support predicate pushdown for conversion metrics. It may have longer term utility,
+        but ideally we'd collapse this with the more general time dimension filter input scenarios.
+        """
+        return (
+            PredicateInputType.TIME_RANGE_CONSTRAINT in self.pushdown_enabled_types
+            and self.time_range_constraint is not None
+        )
+
+    @staticmethod
+    def with_time_range_constraint(
+        original_pushdown_state: PredicatePushdownState, time_range_constraint: TimeRangeConstraint
+    ) -> PredicatePushdownState:
+        """Factory method for updating a pushdown state with a time range constraint.
+
+        This allows for temporarily overriding a time range constraint with an adjusted one, or enabling a time
+        range constraint filter if one becomes available mid-stream during dataflow plan construction.
+        """
+        pushdown_enabled_types = original_pushdown_state.pushdown_enabled_types.union(
+            {PredicateInputType.TIME_RANGE_CONSTRAINT}
+        )
+        return PredicatePushdownState(
+            time_range_constraint=time_range_constraint, pushdown_enabled_types=pushdown_enabled_types
+        )
+
+    @staticmethod
+    def without_time_range_constraint(
+        original_pushdown_state: PredicatePushdownState,
+    ) -> PredicatePushdownState:
+        """Factory method for updating pushdown state to bypass time range constraints."""
+        pushdown_enabled_types = original_pushdown_state.pushdown_enabled_types.difference(
+            {PredicateInputType.TIME_RANGE_CONSTRAINT}
+        )
+        return PredicatePushdownState(time_range_constraint=None, pushdown_enabled_types=pushdown_enabled_types)
+
+    @staticmethod
+    def with_pushdown_disabled() -> PredicatePushdownState:
+        """Factory method for configuring a disabled predicate pushdown state.
+
+        This is useful in cases where there is a branched path where pushdown should be disabled in one branch while the
+        other may remain eligible. For example, a join linkage where one side of the join contains an unsupported
+        configuration might send a disabled copy of the pushdown parameters down that path while retaining the potential
+        for using another path.
+        """
+        return PredicatePushdownState(
+            time_range_constraint=None,
+            pushdown_enabled_types=frozenset(),
+        )
 
 
 class PreJoinNodeProcessor:
@@ -77,24 +216,40 @@ class PreJoinNodeProcessor:
 
     """
 
-    def __init__(  # noqa: D
+    def __init__(  # noqa: D107
         self,
-        semantic_model_lookup: SemanticModelAccessor,
+        semantic_model_lookup: SemanticModelLookup,
         node_data_set_resolver: DataflowPlanNodeOutputDataSetResolver,
     ):
         self._node_data_set_resolver = node_data_set_resolver
         self._partition_resolver = PartitionJoinResolver(semantic_model_lookup)
         self._semantic_model_lookup = semantic_model_lookup
-        self._join_evaluator = SemanticModelJoinEvaluator(semantic_model_lookup)
+        self._join_evaluator = JoinDataflowOutputValidator(semantic_model_lookup)
 
-    def add_time_range_constraint(
+    def apply_matching_filter_predicates(
         self,
-        source_nodes: Sequence[BaseOutput],
+        source_nodes: Sequence[DataflowPlanNode],
+        predicate_pushdown_state: PredicatePushdownState,
+        metric_time_dimension_reference: TimeDimensionReference,
+    ) -> Sequence[DataflowPlanNode]:
+        """Adds filter predicate nodes to the input nodes as appropriate."""
+        if predicate_pushdown_state.has_time_range_constraint_to_push_down:
+            source_nodes = self._add_time_range_constraint(
+                source_nodes=source_nodes,
+                metric_time_dimension_reference=metric_time_dimension_reference,
+                time_range_constraint=predicate_pushdown_state.time_range_constraint,
+            )
+
+        return source_nodes
+
+    def _add_time_range_constraint(
+        self,
+        source_nodes: Sequence[DataflowPlanNode],
         metric_time_dimension_reference: TimeDimensionReference,
         time_range_constraint: Optional[TimeRangeConstraint] = None,
-    ) -> Sequence[BaseOutput]:
+    ) -> Sequence[DataflowPlanNode]:
         """Adds a time range constraint node to the input nodes."""
-        processed_nodes: List[BaseOutput] = []
+        processed_nodes: List[DataflowPlanNode] = []
         for source_node in source_nodes:
             # Constrain the time range if specified.
             if time_range_constraint:
@@ -119,7 +274,7 @@ class PreJoinNodeProcessor:
 
     def _node_contains_entity(
         self,
-        node: BaseOutput,
+        node: DataflowPlanNode,
         entity_reference: EntityReference,
     ) -> bool:
         """Returns true if the output of the node contains an entity of the given types."""
@@ -129,9 +284,6 @@ class PreJoinNodeProcessor:
             entity_spec_in_first_node = entity_instance_in_first_node.spec
 
             if entity_spec_in_first_node.reference != entity_reference:
-                continue
-
-            if len(entity_spec_in_first_node.entity_links) > 0:
                 continue
 
             assert (
@@ -151,7 +303,7 @@ class PreJoinNodeProcessor:
         return False
 
     def _get_candidates_nodes_for_multi_hop(
-        self, desired_linkable_spec: LinkableInstanceSpec, nodes: Sequence[BaseOutput], join_type: SqlJoinType
+        self, desired_linkable_spec: LinkableInstanceSpec, nodes: Sequence[DataflowPlanNode], join_type: SqlJoinType
     ) -> Sequence[MultiHopJoinCandidate]:
         """Assemble nodes representing all possible one-hop joins."""
         if len(desired_linkable_spec.entity_links) > MAX_JOIN_HOPS:
@@ -216,6 +368,8 @@ class PreJoinNodeProcessor:
                     left_instance_set=data_set_of_first_node_that_could_be_joined.instance_set,
                     right_instance_set=data_set_of_second_node_that_can_be_joined.instance_set,
                     on_entity_reference=entity_reference_to_join_first_and_second_nodes,
+                    right_node_is_aggregated_to_entity=second_node_that_could_be_joined.aggregated_to_elements
+                    == {entity_reference_to_join_first_and_second_nodes},
                 ):
                     continue
 
@@ -223,8 +377,11 @@ class PreJoinNodeProcessor:
                 specs = data_set_of_second_node_that_can_be_joined.instance_set.spec_set
                 filtered_joinable_node = FilterElementsNode(
                     parent_node=second_node_that_could_be_joined,
-                    include_specs=InstanceSpecSet.from_specs(
-                        specs.dimension_specs + specs.entity_specs + specs.time_dimension_specs
+                    include_specs=group_specs_by_type(
+                        specs.dimension_specs
+                        + specs.entity_specs
+                        + specs.time_dimension_specs
+                        + specs.group_by_metric_specs
                     ),
                 )
 
@@ -239,7 +396,7 @@ class PreJoinNodeProcessor:
 
                 multi_hop_join_candidates.append(
                     MultiHopJoinCandidate(
-                        node_with_multi_hop_elements=JoinToBaseOutputNode(
+                        node_with_multi_hop_elements=JoinOnEntitiesNode(
                             left_node=first_node_that_could_be_joined,
                             join_targets=[
                                 JoinDescription(
@@ -279,9 +436,9 @@ class PreJoinNodeProcessor:
     def add_multi_hop_joins(
         self,
         desired_linkable_specs: Sequence[LinkableInstanceSpec],
-        nodes: Sequence[BaseOutput],
+        nodes: Sequence[DataflowPlanNode],
         join_type: SqlJoinType,
-    ) -> Sequence[BaseOutput]:
+    ) -> Sequence[DataflowPlanNode]:
         """Assemble nodes representing all possible one-hop joins."""
         all_multi_hop_join_candidates: List[MultiHopJoinCandidate] = []
         lineage_for_all_multi_hop_join_candidates: Set[MultiHopJoinCandidateLineage] = set()
@@ -300,10 +457,10 @@ class PreJoinNodeProcessor:
     def remove_unnecessary_nodes(
         self,
         desired_linkable_specs: Sequence[LinkableInstanceSpec],
-        nodes: Sequence[BaseOutput],
+        nodes: Sequence[DataflowPlanNode],
         metric_time_dimension_reference: TimeDimensionReference,
         time_spine_node: MetricTimeDimensionTransformNode,
-    ) -> Sequence[BaseOutput]:
+    ) -> List[DataflowPlanNode]:
         """Filters out many of the nodes that can't possibly be useful for joins to obtain the desired linkable specs.
 
         A simple filter is to remove any nodes that don't share a common element with the query. Having a common element
