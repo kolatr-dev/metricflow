@@ -79,7 +79,7 @@ class DateutilTimePeriodAdjuster(TimePeriodAdjuster):
             return date_to_adjust
 
         elif time_granularity is TimeGranularity.WEEK:
-            return date_to_adjust + relativedelta(weekday=dateutil.relativedelta.MO(-1))
+            return date_to_adjust + relativedelta(weekday=dateutil.relativedelta.SU(-1))
         elif time_granularity is TimeGranularity.MONTH:
             return date_to_adjust + relativedelta(day=1)
         elif time_granularity is TimeGranularity.QUARTER:
@@ -113,7 +113,7 @@ class DateutilTimePeriodAdjuster(TimePeriodAdjuster):
             return date_to_adjust
 
         elif time_granularity is TimeGranularity.WEEK:
-            return date_to_adjust + relativedelta(weekday=dateutil.relativedelta.SU(1))
+            return date_to_adjust + relativedelta(weekday=dateutil.relativedelta.SA(1))
         elif time_granularity is TimeGranularity.MONTH:
             return date_to_adjust + relativedelta(day=31)
         elif time_granularity is TimeGranularity.QUARTER:
