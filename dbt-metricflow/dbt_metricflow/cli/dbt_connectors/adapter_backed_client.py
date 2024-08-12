@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pandas as pd
 import enum
 import logging
 import time
@@ -134,8 +133,8 @@ class AdapterBackedSqlClient:
         self,
         stmt: str,
         sql_bind_parameters: SqlBindParameters = SqlBindParameters(),
-    ) -> pd.DataFrame:
-        """Query statement; result expected to be data which will be returned as a pandas DataFrame.
+    ) -> MetricFlowDataTable:
+        """Query statement; result expected to be data which will be returned as a DataTable.
 
         Args:
             stmt: The SQL query statement to run. This should produce output via a SELECT
@@ -156,12 +155,14 @@ class AdapterBackedSqlClient:
             logger.info(f"Query returned from dbt Adapter with response {result[0]}")
 
         agate_data = result[1]
-        df = pd.DataFrame([row.values() for row in agate_data.rows], columns=agate_data.column_names)
-
-
+        rows = [row.values() for row in agate_data.rows]
+        data_table = MetricFlowDataTable.create_from_rows(
+            column_names=agate_data.column_names,
+            rows=rows,
+        )
         stop = time.time()
-        logger.info(f"Finished running the query in {stop - start:.2f}s with {df.shape[0]} row(s) returned")
-        return df
+        logger.info(f"Finished running the query in {stop - start:.2f}s with {data_table.row_count} row(s) returned")
+        return data_table
 
     def execute(
         self,

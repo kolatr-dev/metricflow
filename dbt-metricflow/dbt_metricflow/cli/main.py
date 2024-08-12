@@ -15,8 +15,6 @@ from typing import Callable, List, Optional, Sequence
 
 import click
 import jinja2
-import pandas as pd
-from IPython.display import display
 from dbt_semantic_interfaces.protocols.semantic_manifest import SemanticManifest
 from dbt_semantic_interfaces.validations.semantic_manifest_validator import SemanticManifestValidator
 from dbt_semantic_interfaces.validations.validator_helpers import SemanticManifestValidationResults
@@ -334,10 +332,10 @@ def query(
         exit()
 
     assert query_result
-    df: pd.DataFrame = query_result.result_df
+    df = query_result.result_df
     # Show the data if returned successfully
     if df is not None:
-        if df.empty:
+        if df.row_count == 0:
             click.echo("🕳 Successful MQL query returned an empty result set.")
         elif csv is not None:
             # csv is a LazyFile that is file-like that works in this case.
@@ -347,7 +345,7 @@ def query(
                 csv_writer.writerow(row)
             click.echo(f"🖨 Successfully written query output to {csv.name}")
         else:
-            click.echo(display(df))
+            click.echo(df.text_format(decimals))
         if display_plans:
             temp_path = tempfile.mkdtemp()
             svg_path = display_dag_as_svg(query_result.dataflow_plan, temp_path)
