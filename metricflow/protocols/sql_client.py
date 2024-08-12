@@ -25,6 +25,7 @@ class SqlEngine(Enum):
     SNOWFLAKE = "Snowflake"
     DATABRICKS = "Databricks"
     TRINO = "Trino"
+    CLICKHOUSE = "Clickhouse"
 
     @property
     def unsupported_granularities(self) -> Set[TimeGranularity]:

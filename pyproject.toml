@@ -40,6 +40,38 @@ files = [
 Documentation = "https://docs.getdbt.com/docs/build/about-metricflow"
 "Source Code" = "https://github.com/dbt-labs/metricflow"
 
+[tool.hatch.metadata.hooks.requirements_txt.optional-dependencies]
+dbt-bigquery = [
+  "dbt-metricflow/extra-hatch-configuration/requirements-dbt-bigquery.txt"
+]
+dbt-databricks = [
+  "dbt-metricflow/extra-hatch-configuration/requirements-dbt-databricks.txt"
+]
+dbt-duckdb = [
+  "dbt-metricflow/extra-hatch-configuration/requirements-dbt-duckdb.txt"
+]
+dbt-postgres = [
+  "dbt-metricflow/extra-hatch-configuration/requirements-dbt-postgres.txt"
+]
+dbt-redshift = [
+  "dbt-metricflow/extra-hatch-configuration/requirements-dbt-redshift.txt"
+]
+dbt-snowflake = [
+  "dbt-metricflow/extra-hatch-configuration/requirements-dbt-snowflake.txt"
+]
+dbt-trino = [
+  "dbt-metricflow/extra-hatch-configuration/requirements-dbt-trino.txt"
+]
+dbt-clickhouse = [
+  "dbt-metricflow/extra-hatch-configuration/requirements-dbt-clickhouse.txt"
+]
+dev-packages = [
+  "metricflow-semantics/extra-hatch-configuration/requirements-dev-packages.txt",
+  "dbt-metricflow/extra-hatch-configuration/requirements-cli.txt"
+]
+trino-sql-client-packages = [
+  "extra-hatch-configuration/requirements-trino-sql-client-packages.txt"
+]
 
 # There are files that hatch will always include as well (e.g. the LICENSE file).
 # See hatch build docs for more details.
