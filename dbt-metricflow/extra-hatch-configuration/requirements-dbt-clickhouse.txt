@@ -1,1 +1,1 @@
-dbt-clickhouse>=1.8.0, <1.9.0
+dbt-clickhouse @ git+https://github.com/kolatr-dev/dbt-clickhouse.git
