@@ -67,6 +67,7 @@ dbt-clickhouse = [
 ]
 
 [tool.hatch.build.targets.sdist]
+packages = ["dbt_metricflow"]
 exclude = [
   "/.github",
   "/.changes",
